@@ -13,10 +13,11 @@ func NewBaseInputStreamHandler(line *Line) *BaseInputStreamHandler {
 }
 
 func (b *BaseInputStreamHandler) Handle(action Action, a ...rune) {
-	//fmt.Printf("action: %s %q\r\n", action, string(a))
 	switch action {
 	// enter 按下
 	case ctrl_j:
+		b.line.ReturnInput()
+	case ctrl_m:
 		b.line.ReturnInput()
 	case home:
 		b.line.Home()

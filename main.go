@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"startprompt/inputstream"
+	"startprompt/terminalcode"
 )
 
 func mpanic(format string, a ...any) {
@@ -31,8 +32,9 @@ func iscntrl(k rune) bool {
 }
 
 type CommandLine struct {
-	reader *bufio.Reader
-	writer *bufio.Writer
+	reader  *bufio.Reader
+	writer  *bufio.Writer
+	running bool
 }
 
 func (c *CommandLine) ReadInput() string {
@@ -48,50 +50,64 @@ func (c *CommandLine) ReadInput() string {
 			mpanic("error read: %v\n", err)
 		}
 		is.Feed(r)
+		c.draw(line.Document())
 		if r == ctrlKey('q') {
+			c.running = false
 			break
 		}
 		if line.Finished() {
 			break
 		}
-		if reader.Buffered() == 0 {
-			c.draw(line.Document())
-		}
 	}
-	return line.Text()
+	text := line.Text()
+	if len(text) > 0 {
+		c.outputStringf("\r\n")
+	}
+	return text
 }
 
 func (c *CommandLine) draw(doc *inputstream.Document) {
-	fmt.Printf("buffer: %d\n", c.reader.Buffered())
 	text := doc.Text
-	//pos := c.getCursorPosition()
-	//pos.col = doc.CursorPosition + 1
+	cursorX := doc.CursorPosition
 	// 隐藏光标
-	c.writeString("\x1b[?25l")
-	// 删除整行
-	c.writeString("\x1b[2K")
-	//c.writeString(fmt.Sprintf("\x1b[%d;0H", pos.row))
+	c.writeString(terminalcode.HideCursor)
+	// 移动光标到行首
+	c.writeString(terminalcode.CarriageReturn)
+	// 删除当行到屏幕下方
+	c.writeString(terminalcode.EraseDown)
 	c.writeString(text)
-	// 定位光标
-	//c.writeString(fmt.Sprintf("\x1b[%d;%dH", pos.row, pos.col))
+	lastX := len(text) + 1
+	// 移动光标
+	if lastX > cursorX {
+		c.writeString(terminalcode.CursorBackward(lastX - cursorX))
+	} else if lastX < cursorX {
+		c.writeString(terminalcode.CursorForward(cursorX - lastX))
+	}
 	// 显示光标
 	c.writeString("\x1b[?25h")
 	c.flush()
 }
 
+// 写入字符串到输出缓冲中
 func (c *CommandLine) writeString(s string) {
 	_, err := c.writer.WriteString(s)
 	ensureOk(err)
 }
 
-func (c *CommandLine) flushString(s string) {
+func (c *CommandLine) flush() {
+	err := c.writer.Flush()
+	ensureOk(err)
+}
+
+// 直接输出字符串，不进行缓冲
+func (c *CommandLine) outputString(s string) {
 	c.writeString(s)
 	c.flush()
 }
 
-func (c *CommandLine) flush() {
-	err := c.writer.Flush()
-	ensureOk(err)
+func (c *CommandLine) outputStringf(format string, a ...any) {
+	c.writeString(fmt.Sprintf(format, a...))
+	c.flush()
 }
 
 type Position struct {
@@ -100,11 +116,14 @@ type Position struct {
 }
 
 func (c *CommandLine) getCursorPosition() Position {
-	c.flushString("\x1b[6n")
+	c.outputString("\x1b[6n")
 	var buf [32]byte
 	var i int
 	// 回复格式为 \x1b[A;BR
 	// A 和 B 就是光标的行和列
+	// todo 这里读取光标位置实际使用发现有一个问题
+	// 如果用户的输入没有及时处理（比如一直按着 A），下面的循环就会读到剩余的用户输入
+	// 而不是简单的 \x1b[A;BR 转义序列
 	for i = 0; i < 32; i++ {
 		c, err := c.reader.ReadByte()
 		ensureOk(err)
@@ -134,7 +153,7 @@ func (c *CommandLine) getCursorPosition() Position {
 func NewCommandLine() *CommandLine {
 	reader := bufio.NewReader(os.Stdin)
 	writer := bufio.NewWriter(os.Stdout)
-	return &CommandLine{reader: reader, writer: writer}
+	return &CommandLine{reader: reader, writer: writer, running: true}
 }
 
 func main() {
@@ -162,5 +181,8 @@ func main() {
 	}(int(os.Stdin.Fd()), oldState)
 
 	c := NewCommandLine()
-	c.ReadInput()
+	for c.running {
+		line := c.ReadInput()
+		c.outputStringf("echo: %s\r\n", line)
+	}
 }

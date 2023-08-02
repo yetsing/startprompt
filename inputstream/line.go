@@ -77,8 +77,9 @@ func (l *Line) Text() string {
 
 func (l *Line) Document() *Document {
 	return &Document{
-		Text:           l.Text(),
-		CursorPosition: l.cursorPosition,
+		Text: l.Text(),
+		// 光标在文件的右边，所以实际的显示要 +1
+		CursorPosition: l.cursorPosition + 1,
 	}
 }
 
