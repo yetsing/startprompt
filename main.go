@@ -7,7 +7,8 @@ import (
 	"golang.org/x/term"
 	"os"
 	"strconv"
-	"yqprompt/inputstream"
+
+	"startprompt/inputstream"
 )
 
 func mpanic(format string, a ...any) {
