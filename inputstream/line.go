@@ -1,5 +1,7 @@
 package inputstream
 
+import "github.com/mattn/go-runewidth"
+
 func maxInt(a ...int) int {
 	m := a[0]
 	for _, n := range a {
@@ -41,6 +43,35 @@ func (l *Line) End() {
 	l.cursorPosition = len(l.buffer)
 }
 
+func (l *Line) CursorLeft() {
+	if l.cursorPosition > 0 {
+		l.cursorPosition--
+	}
+}
+
+func (l *Line) CursorRight() {
+	if l.cursorPosition < len(l.buffer) {
+		l.cursorPosition++
+	}
+}
+
+func (l *Line) DeleteCharacterBeforeCursor() rune {
+	if l.cursorPosition == 0 {
+		return 0
+	}
+	deleted := l.removeRune(l.cursorPosition - 1)
+	l.cursorPosition--
+	return deleted
+}
+
+func (l *Line) DeleteCharacterAfterCursor() rune {
+	if l.cursorPosition == len(l.buffer) {
+		return 0
+	}
+	deleted := l.removeRune(l.cursorPosition)
+	return deleted
+}
+
 func (l *Line) InsertText(data []rune) {
 	// 在 cursorPosition 的位置插入 data
 	if len(data) == 0 {
@@ -63,6 +94,14 @@ func (l *Line) insertRune(index int, value rune) {
 	l.buffer = buffer
 }
 
+func (l *Line) removeRune(index int) rune {
+	buffer := l.buffer
+	value := buffer[index]
+	buffer = append(buffer[:index], buffer[index+1:]...)
+	l.buffer = buffer
+	return value
+}
+
 func (l *Line) ReturnInput() {
 	l.finished = true
 }
@@ -76,14 +115,15 @@ func (l *Line) Text() string {
 }
 
 func (l *Line) Document() *Document {
+	s := string(l.buffer[:l.cursorPosition])
 	return &Document{
 		Text: l.Text(),
 		// 光标在文件的右边，所以实际的显示要 +1
-		CursorPosition: l.cursorPosition + 1,
+		CursorX: runewidth.StringWidth(s),
 	}
 }
 
 type Document struct {
-	Text           string
-	CursorPosition int
+	Text    string
+	CursorX int
 }

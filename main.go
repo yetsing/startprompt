@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/mattn/go-runewidth"
 	"golang.org/x/term"
 	"os"
 	"strconv"
@@ -68,7 +69,7 @@ func (c *CommandLine) ReadInput() string {
 
 func (c *CommandLine) draw(doc *inputstream.Document) {
 	text := doc.Text
-	cursorX := doc.CursorPosition
+	cursorX := doc.CursorX
 	// 隐藏光标
 	c.writeString(terminalcode.HideCursor)
 	// 移动光标到行首
@@ -76,7 +77,7 @@ func (c *CommandLine) draw(doc *inputstream.Document) {
 	// 删除当行到屏幕下方
 	c.writeString(terminalcode.EraseDown)
 	c.writeString(text)
-	lastX := len(text) + 1
+	lastX := runewidth.StringWidth(text)
 	// 移动光标
 	if lastX > cursorX {
 		c.writeString(terminalcode.CursorBackward(lastX - cursorX))

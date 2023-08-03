@@ -31,8 +31,8 @@ const (
 // CursorGoto 移动光标到指定位置
 //
 //goland:noinspection GoUnusedExportedFunction
-func CursorGoto(row, column int) string {
-	return fmt.Sprintf("\x1b[%d;%dH", row, column)
+func CursorGoto(x, y int) string {
+	return fmt.Sprintf("\x1b[%d;%dH", x, y)
 }
 
 // CursorUp https://vt100.net/docs/vt100-ug/chapter3.html#CUU
