@@ -1,16 +1,17 @@
-package main
+package startprompt
 
 import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/mattn/go-runewidth"
-	"golang.org/x/term"
+	"github.com/yetsing/startprompt/lexer"
+	"github.com/yetsing/startprompt/terminalcolor"
+	"github.com/yetsing/startprompt/token"
 	"os"
 	"strconv"
 
-	"startprompt/inputstream"
-	"startprompt/terminalcode"
+	"github.com/yetsing/startprompt/inputstream"
+	"github.com/yetsing/startprompt/terminalcode"
 )
 
 func mpanic(format string, a ...any) {
@@ -30,6 +31,21 @@ func ctrlKey(k rune) rune {
 //goland:noinspection GoUnusedFunction
 func iscntrl(k rune) bool {
 	return k <= 0x1f || k == 127
+}
+
+type LexerFactory func(text string) LexerAbc
+
+type LexerAbc interface {
+	GetTokens() []token.Token
+}
+
+type Schema map[token.TokenType]terminalcolor.Style
+
+var defaultSchema = map[token.TokenType]terminalcolor.Style{
+	token.INT:     terminalcolor.BrightCyan,
+	token.STRING:  terminalcolor.BrightGreen,
+	token.ILLEGAL: terminalcolor.BrightRed,
+	token.KEYWORD: terminalcolor.BrightMagenta,
 }
 
 type CommandLine struct {
@@ -62,7 +78,7 @@ func (c *CommandLine) ReadInput() string {
 	}
 	text := line.Text()
 	if len(text) > 0 {
-		c.outputStringf("\r\n")
+		c.OutputStringf("\r\n")
 	}
 	return text
 }
@@ -76,8 +92,14 @@ func (c *CommandLine) draw(doc *inputstream.Document) {
 	c.writeString(terminalcode.CarriageReturn)
 	// 删除当行到屏幕下方
 	c.writeString(terminalcode.EraseDown)
-	c.writeString(text)
-	lastX := runewidth.StringWidth(text)
+
+	l := lexer.New(text)
+	screen := NewScreen(defaultSchema)
+	screen.WriteTokens(l.GetTokens())
+	result, lastPosition := screen.Output()
+	lastX := lastPosition.X
+	c.writeString(result)
+
 	// 移动光标
 	if lastX > cursorX {
 		c.writeString(terminalcode.CursorBackward(lastX - cursorX))
@@ -100,13 +122,13 @@ func (c *CommandLine) flush() {
 	ensureOk(err)
 }
 
-// 直接输出字符串，不进行缓冲
-func (c *CommandLine) outputString(s string) {
+// OutputString 直接输出字符串（无缓冲）
+func (c *CommandLine) OutputString(s string) {
 	c.writeString(s)
 	c.flush()
 }
 
-func (c *CommandLine) outputStringf(format string, a ...any) {
+func (c *CommandLine) OutputStringf(format string, a ...any) {
 	c.writeString(fmt.Sprintf(format, a...))
 	c.flush()
 }
@@ -117,7 +139,7 @@ type Position struct {
 }
 
 func (c *CommandLine) getCursorPosition() Position {
-	c.outputString("\x1b[6n")
+	c.OutputString("\x1b[6n")
 	var buf [32]byte
 	var i int
 	// 回复格式为 \x1b[A;BR
@@ -151,39 +173,12 @@ func (c *CommandLine) getCursorPosition() Position {
 	}
 }
 
+func (c *CommandLine) Running() bool {
+	return c.running
+}
+
 func NewCommandLine() *CommandLine {
 	reader := bufio.NewReader(os.Stdin)
 	writer := bufio.NewWriter(os.Stdout)
 	return &CommandLine{reader: reader, writer: writer, running: true}
-}
-
-func main() {
-	// 开启 terminal raw mode
-	// 这种模式下会拿到用户原始的输入，比如输入 Ctrl-c 时，不会中断当前程序，而是拿到 Ctrl-c 的表示
-	// 不会自动展示用户输入
-	// 更多说明解释参考：https://viewsourcecode.org/snaptoken/kilo/02.enteringRawMode.html
-	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
-	if err != nil {
-		fmt.Printf("error make raw mode: %v\n", err)
-		return
-	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("Recovered. Error: \n", r)
-		}
-	}()
-
-	defer func(fd int, oldState *term.State) {
-		err := term.Restore(fd, oldState)
-		if err != nil {
-			fmt.Printf("error restore: %v\n", err)
-		}
-	}(int(os.Stdin.Fd()), oldState)
-
-	c := NewCommandLine()
-	for c.running {
-		line := c.ReadInput()
-		c.outputStringf("echo: %s\r\n", line)
-	}
 }

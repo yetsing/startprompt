@@ -1,4 +1,4 @@
-module startprompt
+module github.com/yetsing/startprompt
 
 go 1.20
 
