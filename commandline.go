@@ -56,7 +56,7 @@ type CommandLine struct {
 
 func (c *CommandLine) ReadInput() string {
 	line := inputstream.NewLine()
-	handler := inputstream.NewBaseInputStreamHandler(line)
+	handler := inputstream.NewBaseHandler(line)
 	is := inputstream.NewInputStream(handler)
 	var r rune
 	var err error

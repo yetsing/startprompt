@@ -1,20 +1,20 @@
 package inputstream
 
-type InputStreamHandler interface {
-	Handle(action Action, a ...rune)
+type Handler interface {
+	Handle(action Event, a ...rune)
 }
 
-type BaseInputStreamHandler struct {
+type BaseHandler struct {
 	line *Line
 }
 
-func NewBaseInputStreamHandler(line *Line) *BaseInputStreamHandler {
-	return &BaseInputStreamHandler{line: line}
+func NewBaseHandler(line *Line) *BaseHandler {
+	return &BaseHandler{line: line}
 }
 
-func (b *BaseInputStreamHandler) Handle(action Action, a ...rune) {
+func (b *BaseHandler) Handle(event Event, a ...rune) {
 	line := b.line
-	switch action {
+	switch event {
 	case ctrl_space:
 
 	case ctrl_a:

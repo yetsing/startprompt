@@ -9,15 +9,16 @@ import (
 // 解析 VT100 输入流数据
 // 参考：https://vt100.net/docs/vt100-ug/chapter3.html
 
-func NewInputStream(handler InputStreamHandler) *InputStream {
+func NewInputStream(handler Handler) *InputStream {
 	return &InputStream{handler: handler}
 }
 
 type InputStream struct {
-	handler  InputStreamHandler
+	handler  Handler
 	previous string
 }
 
+// Feed 根据输入触发对应的事件
 func (is *InputStream) Feed(r rune) {
 	var buffer []rune
 	for true {
@@ -39,16 +40,19 @@ func (is *InputStream) Feed(r rune) {
 			break
 		}
 
-		// 之前保存了几个 key 应该匹配快捷键，但是现在发现没有匹配的快捷键
+		// 之前保存了 key 可能匹配快捷键，但是现在发现没有匹配的快捷键
 		// 比如有个 abc 的快捷键，用户先输入 ab ，匹配到 abc 前缀，于是暂时保存 ab
 		// 后面用户输入 d ，此时用户输入的 key 就变成 abd ，没有匹配，需要做其他处理
 		if len(is.previous) > 0 {
 			first := runeAt(is.previous, 0)
+			// 按下 Esc 键就会收到 '\x1b' ，所以这里需要判断一下特殊处理
 			if first == '\x1b' {
 				is.callHandler(escape_action)
 			} else {
+				// 如果不是快捷键操作，那么就是正常的输入
 				is.callHandler(insert_char, first)
 			}
+			// 剩余的字符放到缓冲中，留待下次循环的时候处理
 			buffer = []rune(is.previous[utf8.RuneLen(first):])
 			buffer = append(buffer, r)
 			is.previous = ""
@@ -65,8 +69,8 @@ func (is *InputStream) Feed(r rune) {
 	}
 }
 
-func (is *InputStream) callHandler(action Action, a ...rune) {
-	is.handler.Handle(action, a...)
+func (is *InputStream) callHandler(event Event, a ...rune) {
+	is.handler.Handle(event, a...)
 }
 
 func runeAt(s string, index int) rune {
@@ -88,9 +92,9 @@ func prefixMatchKeyActions(prefix string) bool {
 	return false
 }
 
-type Action int
+type Event int
 
-var actionStr = []string{
+var eventStr = []string{
 	"ctrl_space", "ctrl_a", "ctrl_b", "ctrl_c", "ctrl_d", "ctrl_e", "ctrl_f", "ctrl_g", "ctrl_h", "ctrl_i", "ctrl_j",
 	"ctrl_k", "ctrl_l", "ctrl_m", "ctrl_n", "ctrl_o", "ctrl_p", "ctrl_q", "ctrl_r", "ctrl_s", "ctrl_t", "ctrl_u",
 	"ctrl_v", "ctrl_w", "ctrl_x", "ctrl_y", "ctrl_z",
@@ -105,12 +109,12 @@ var actionStr = []string{
 	"insert_char",
 }
 
-func (a Action) String() string {
-	return actionStr[a]
+func (a Event) String() string {
+	return eventStr[a]
 }
 
 const (
-	ctrl_space Action = iota
+	ctrl_space Event = iota
 	ctrl_a
 	ctrl_b
 	ctrl_c
@@ -176,7 +180,7 @@ const (
 	insert_char
 )
 
-var keyActions = map[string]Action{
+var keyActions = map[string]Event{
 	"\x00": ctrl_space,
 	"\x01": ctrl_a,
 	"\x02": ctrl_b,
