@@ -9,3 +9,5 @@ start build prompt commandline application
 # 参考
 
 [pygments](https://github.com/pygments/pygments)
+
+《用Go语言自制解释器》

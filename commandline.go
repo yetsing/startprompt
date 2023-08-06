@@ -4,13 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/yetsing/startprompt/lexer"
-	"github.com/yetsing/startprompt/terminalcolor"
-	"github.com/yetsing/startprompt/token"
 	"os"
 	"strconv"
 
 	"github.com/yetsing/startprompt/inputstream"
+	"github.com/yetsing/startprompt/lexer"
 	"github.com/yetsing/startprompt/terminalcode"
 )
 
@@ -28,30 +26,11 @@ func ctrlKey(k rune) rune {
 	return k & 0x1f
 }
 
-//goland:noinspection GoUnusedFunction
-func iscntrl(k rune) bool {
-	return k <= 0x1f || k == 127
-}
-
-type LexerFactory func(text string) LexerAbc
-
-type LexerAbc interface {
-	GetTokens() []token.Token
-}
-
-type Schema map[token.TokenType]terminalcolor.Style
-
-var defaultSchema = map[token.TokenType]terminalcolor.Style{
-	token.INT:     terminalcolor.BrightCyan,
-	token.STRING:  terminalcolor.BrightGreen,
-	token.ILLEGAL: terminalcolor.BrightRed,
-	token.KEYWORD: terminalcolor.BrightMagenta,
-}
-
 type CommandLine struct {
-	reader  *bufio.Reader
-	writer  *bufio.Writer
-	running bool
+	reader     *bufio.Reader
+	writer     *bufio.Writer
+	running    bool
+	tokensFunc lexer.GetTokensFunc
 }
 
 func (c *CommandLine) ReadInput() string {
@@ -61,26 +40,33 @@ func (c *CommandLine) ReadInput() string {
 	var r rune
 	var err error
 	reader := c.reader
+	var inputText string
 	for true {
 		r, _, err = reader.ReadRune()
 		if err != nil {
 			mpanic("error read: %v\n", err)
 		}
+		DebugLog("ReadRune: %d", r)
 		is.Feed(r)
-		c.draw(line.Document())
+		DebugLog("before draw document")
+		doc := line.Document()
+		c.draw(doc)
+		DebugLog("draw document")
 		if r == ctrlKey('q') {
+			DebugLog("normally exit")
 			c.running = false
 			break
 		}
 		if line.Finished() {
+			inputText = doc.Text
 			break
 		}
 	}
-	text := line.Text()
-	if len(text) > 0 {
+	DebugLog("return input: %s", inputText)
+	if len(inputText) > 0 {
 		c.OutputStringf("\r\n")
 	}
-	return text
+	return inputText
 }
 
 func (c *CommandLine) draw(doc *inputstream.Document) {
@@ -93,9 +79,8 @@ func (c *CommandLine) draw(doc *inputstream.Document) {
 	// 删除当行到屏幕下方
 	c.writeString(terminalcode.EraseDown)
 
-	l := lexer.New(text)
 	screen := NewScreen(defaultSchema)
-	screen.WriteTokens(l.GetTokens())
+	screen.WriteTokens(c.tokensFunc(text))
 	result, lastPosition := screen.Output()
 	lastX := lastPosition.X
 	c.writeString(result)
@@ -177,8 +162,13 @@ func (c *CommandLine) Running() bool {
 	return c.running
 }
 
-func NewCommandLine() *CommandLine {
+func NewCommandLine(tokensFunc lexer.GetTokensFunc) *CommandLine {
 	reader := bufio.NewReader(os.Stdin)
 	writer := bufio.NewWriter(os.Stdout)
-	return &CommandLine{reader: reader, writer: writer, running: true}
+	return &CommandLine{
+		reader:     reader,
+		writer:     writer,
+		running:    true,
+		tokensFunc: tokensFunc,
+	}
 }

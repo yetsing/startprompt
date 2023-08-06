@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/yetsing/startprompt"
+	"github.com/yetsing/startprompt/lexer"
 	"golang.org/x/term"
 	"os"
 )
@@ -25,7 +26,7 @@ func main() {
 		}
 	}(int(os.Stdin.Fd()), oldState)
 
-	c := startprompt.NewCommandLine()
+	c := startprompt.NewCommandLine(lexer.GetMonkeyTokens)
 	for c.Running() {
 		line := c.ReadInput()
 		c.OutputStringf("echo: %s\r\n", line)
