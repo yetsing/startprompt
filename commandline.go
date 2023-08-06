@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"golang.org/x/term"
 	"os"
 	"strconv"
 
@@ -12,7 +13,7 @@ import (
 	"github.com/yetsing/startprompt/terminalcode"
 )
 
-func mpanic(format string, a ...any) {
+func panicf(format string, a ...any) {
 	panic(fmt.Sprintf(format, a...))
 }
 
@@ -27,10 +28,12 @@ func ctrlKey(k rune) rune {
 }
 
 type CommandLine struct {
-	reader     *bufio.Reader
-	writer     *bufio.Writer
-	running    bool
-	tokensFunc lexer.GetTokensFunc
+	reader         *bufio.Reader
+	writer         *bufio.Writer
+	running        bool
+	tokensFunc     lexer.GetTokensFunc
+	enableDebugLog bool
+	oldState       *term.State
 }
 
 func (c *CommandLine) ReadInput() string {
@@ -44,16 +47,16 @@ func (c *CommandLine) ReadInput() string {
 	for true {
 		r, _, err = reader.ReadRune()
 		if err != nil {
-			mpanic("error read: %v\n", err)
+			panicf("error read: %v\n", err)
 		}
-		DebugLog("ReadRune: %d", r)
+		DebugLog("read rune: %d", r)
 		is.Feed(r)
-		DebugLog("before draw document")
+		DebugLog("feed: %d", r)
 		doc := line.Document()
 		c.draw(doc)
 		DebugLog("draw document")
 		if r == ctrlKey('q') {
-			DebugLog("normally exit")
+			DebugLog("exit normally")
 			c.running = false
 			break
 		}
@@ -142,11 +145,11 @@ func (c *CommandLine) getCursorPosition() Position {
 		}
 	}
 	if buf[0] != '\x1b' || buf[1] != '[' {
-		mpanic("invalid cursor position report escape: %v", buf[:i])
+		panicf("invalid cursor position report escape: %v", buf[:i])
 	}
 	sepIndex := bytes.IndexByte(buf[:], ';')
 	if sepIndex == -1 {
-		mpanic("invalid cursor position report separator: %v", buf[:i])
+		panicf("invalid cursor position report separator: %v", buf[:i])
 	}
 	row, err := strconv.ParseInt(string(buf[2:sepIndex]), 10, 32)
 	ensureOk(err)
@@ -162,13 +165,35 @@ func (c *CommandLine) Running() bool {
 	return c.running
 }
 
-func NewCommandLine(tokensFunc lexer.GetTokensFunc) *CommandLine {
+func (c *CommandLine) Restore() {
+	err := term.Restore(int(os.Stdin.Fd()), c.oldState)
+	if err != nil {
+		fmt.Printf("restore error: %v\r\n", err)
+	}
+}
+
+func NewCommandLine(tokensFunc lexer.GetTokensFunc, debug bool) (*CommandLine, error) {
+	// 开启 terminal raw mode
+	// 这种模式下会拿到用户原始的输入，比如输入 Ctrl-c 时，不会中断当前程序，而是拿到 Ctrl-c 的表示
+	// 不会自动展示用户输入
+	// 更多说明解释参考：https://viewsourcecode.org/snaptoken/kilo/02.enteringRawMode.html
+	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		return nil, err
+	}
+
 	reader := bufio.NewReader(os.Stdin)
 	writer := bufio.NewWriter(os.Stdout)
+	if debug {
+		enableDebugLog()
+	} else {
+		disableDebugLog()
+	}
 	return &CommandLine{
 		reader:     reader,
 		writer:     writer,
 		running:    true,
 		tokensFunc: tokensFunc,
-	}
+		oldState:   oldState,
+	}, nil
 }

@@ -29,12 +29,21 @@ func getCaller() *caller {
 }
 
 func DebugLog(format string, a ...any) {
-	c := getCaller()
 	msg := fmt.Sprintf(format, a...)
-	log.WithFields(log.Fields{
-		"method":   c.name,
-		"filename": fmt.Sprintf("%s:%d", c.filename, c.line),
-	}).Debug(msg)
+	//c := getCaller()
+	//log.WithFields(log.Fields{
+	//	"method":   c.name,
+	//	"filename": fmt.Sprintf("%s:%d", c.filename, c.line),
+	//}).Debug(msg)
+	log.Debug(msg)
+}
+
+func enableDebugLog() {
+	log.SetLevel(log.DebugLevel)
+}
+
+func disableDebugLog() {
+	log.SetLevel(log.PanicLevel)
 }
 
 func init() {
@@ -43,7 +52,6 @@ func init() {
 		panic(err)
 	}
 	log.SetOutput(file)
-	log.SetLevel(log.DebugLevel)
 	log.SetFormatter(&log.TextFormatter{
 		DisableColors: true,
 		FullTimestamp: true,
