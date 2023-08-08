@@ -1,7 +1,5 @@
 package inputstream
 
-import "github.com/mattn/go-runewidth"
-
 func maxInt(a ...int) int {
 	m := a[0]
 	for _, n := range a {
@@ -13,7 +11,8 @@ func maxInt(a ...int) int {
 }
 
 type Line struct {
-	buffer         []rune
+	buffer []rune
+	// 光标在文本 buffer 中的位置
 	cursorPosition int
 	finished       bool
 }
@@ -110,20 +109,133 @@ func (l *Line) Finished() bool {
 	return l.finished
 }
 
-func (l *Line) Text() string {
+func (l *Line) text() string {
 	return string(l.buffer)
 }
 
 func (l *Line) Document() *Document {
-	s := string(l.buffer[:l.cursorPosition])
-	return &Document{
-		Text: l.Text(),
-		// 光标在文件的右边，所以实际的显示要 +1
-		CursorX: runewidth.StringWidth(s),
-	}
+	s := string(l.buffer)
+	return NewDocument(s, l.cursorPosition)
 }
 
-type Document struct {
-	Text    string
-	CursorX int
-}
+//type Document struct {
+//	Text    string
+//	CursorX int
+//	buffer  []rune
+//	// 光标在文本 buffer 中的位置
+//	cursorPosition int
+//}
+//
+//// 返回光标位置的字符，如果不存在返回 0
+//func (d *Document) currentChar() rune {
+//	return d.getCharRelativeToCursor(0)
+//}
+//
+//// 返回光标前的字符，如果不存在返回 0
+//func (d *Document) charBeforeCursor() rune {
+//	return d.getCharRelativeToCursor(-1)
+//}
+//
+//// 返回光标前的文本
+//func (d *Document) textBeforeCursor() string {
+//	return string(d.buffer[:d.cursorPosition])
+//}
+//
+//// 返回光标后的文本
+//func (d *Document) textAfterCursor() string {
+//	return string(d.buffer[d.cursorPosition:])
+//}
+//
+//// 返回从行首到光标处的文本
+//func (d *Document) currentLineBeforeCursor() string {
+//	text := d.textBeforeCursor()
+//	splited := strings.Split(text, "\n")
+//	return splited[len(splited)-1]
+//}
+//
+//// 返回从光标到行尾的文本
+//func (d *Document) currentLineAfterCursor() string {
+//	text := d.textAfterCursor()
+//	splited := strings.Split(text, "\n")
+//	return splited[0]
+//}
+//
+//// 返回行数组
+//func (d *Document) lines() []string {
+//	text := string(d.buffer)
+//	return strings.Split(text, "\n")
+//}
+//
+//// 返回当前行到最后一行的数组
+//func (d *Document) linesFromCurrent() []string {
+//	row := d.cursorPositionRow()
+//	return d.lines()[row:]
+//}
+//
+//// 返回行数
+//func (d *Document) lineCount() int {
+//	return len(d.lines())
+//}
+//
+//// 返回光标所在行
+//func (d *Document) currentLine() string {
+//	return d.currentLineBeforeCursor() + d.currentLineAfterCursor()
+//}
+//
+//// 返回当前行的行首位置的空白字符
+//func (d *Document) leadingWhitespaceInCurrentLine() string {
+//	currentLine := d.currentLine()
+//	var i int
+//	var r rune
+//	for i, r = range currentLine {
+//		// 找到第一个不是空白字符
+//		if !unicode.IsSpace(r) {
+//			break
+//		}
+//	}
+//	return currentLine[:i]
+//}
+//
+//// 返回相对于 cursorPosition 的字符，如果不存在返回 0
+//func (d *Document) getCharRelativeToCursor(offset int) rune {
+//	index := d.cursorPosition + offset
+//	if index < 0 || index >= len(d.buffer) {
+//		return 0
+//	}
+//	return d.buffer[index]
+//}
+//
+//// 返回光标所在行号（从 0 开始计数）
+//func (d *Document) cursorPositionRow() int {
+//	text := d.textBeforeCursor()
+//	return len(strings.Split(text, "\n")) - 1
+//}
+//
+//// 返回光标所在列号（从 0 开始计数）
+//func (d *Document) cursorPositionCol() int {
+//	return len(d.textBeforeCursor())
+//}
+//
+//// 将文本索引翻译为相应的行和列号
+//func (d *Document) translateIndexToPosition(index int) (int, int) {
+//	text := string(d.buffer[:index])
+//	lines := strings.Split(text, "\n")
+//	row := len(lines) - 1
+//	col := len(lines[len(lines)-1])
+//	return row, col
+//}
+//
+//// 将行和列号翻译为文本索引
+//func (d *Document) translateRowColToIndex(row int, col int) int {
+//	lines := d.lines()
+//	index := 0
+//	for i, line := range lines {
+//		if i >= row {
+//			break
+//		}
+//		index += len(line)
+//	}
+//	// 有 row 个换行符，再加上列号
+//	index += row + col
+//	return index
+//}
