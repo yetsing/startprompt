@@ -61,11 +61,11 @@ func (c *CommandLine) ReadInput() string {
 			break
 		}
 		if line.Finished() {
-			inputText = doc.Text
+			inputText = doc.Text()
 			break
 		}
 	}
-	DebugLog("return input: %s", inputText)
+	DebugLog("return input: <%s>", inputText)
 	if len(inputText) > 0 {
 		c.OutputStringf("\r\n")
 	}
@@ -73,8 +73,7 @@ func (c *CommandLine) ReadInput() string {
 }
 
 func (c *CommandLine) draw(doc *inputstream.Document) {
-	text := doc.Text
-	cursorX := doc.CursorX
+	text := doc.Text()
 	// 隐藏光标
 	c.writeString(terminalcode.HideCursor)
 	// 移动光标到行首
@@ -84,15 +83,20 @@ func (c *CommandLine) draw(doc *inputstream.Document) {
 
 	screen := NewScreen(defaultSchema)
 	screen.WriteTokens(c.tokensFunc(text))
-	result, lastPosition := screen.Output()
-	lastX := lastPosition.X
+	screen.saveInputPos()
+	result, lastCoordinate := screen.Output()
 	c.writeString(result)
 
 	// 移动光标
-	if lastX > cursorX {
-		c.writeString(terminalcode.CursorBackward(lastX - cursorX))
-	} else if lastX < cursorX {
-		c.writeString(terminalcode.CursorForward(cursorX - lastX))
+	cursorCoordinate := screen.getCursorCoordinate(doc.CursorPositionRow(), doc.CursorPositionCol())
+	lastX := lastCoordinate.X
+	if lastCoordinate.Y > cursorCoordinate.Y {
+		c.writeString(terminalcode.CursorUp(lastCoordinate.Y - cursorCoordinate.Y))
+	}
+	if lastX > cursorCoordinate.X {
+		c.writeString(terminalcode.CursorBackward(lastX - cursorCoordinate.X))
+	} else if lastX < cursorCoordinate.X {
+		c.writeString(terminalcode.CursorForward(cursorCoordinate.X - lastX))
 	}
 	// 显示光标
 	c.writeString("\x1b[?25h")

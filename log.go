@@ -14,6 +14,7 @@ type caller struct {
 	name     string
 }
 
+//goland:noinspection GoUnusedFunction
 func getCaller() *caller {
 	pc, filename, line, ok := runtime.Caller(3)
 	if ok {
