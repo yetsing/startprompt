@@ -1,7 +1,6 @@
 package startprompt
 
 import (
-	"github.com/yetsing/startprompt/inputstream"
 	"github.com/yetsing/startprompt/token"
 )
 
@@ -12,7 +11,7 @@ type Completion struct {
 	Suffix string
 }
 
-type NewCodeFunc func(document *inputstream.Document) Code
+type NewCodeFunc func(document *Document) Code
 
 type Code interface {
 	// GetTokens 返回分词后的 Token 列表
@@ -29,11 +28,10 @@ type Code interface {
 }
 
 type _BaseCode struct {
-	document *inputstream.Document
+	document *Document
 }
 
-//goland:noinspection GoUnusedFunction
-func newBaseCode(document *inputstream.Document) *_BaseCode {
+func newBaseCode(document *Document) Code {
 	return &_BaseCode{document: document}
 }
 

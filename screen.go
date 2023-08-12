@@ -97,8 +97,7 @@ func (s *Screen) Output() (string, Coordinate) {
 				if _, found := lineData[c]; found {
 					grid = lineData[c]
 				} else {
-					// 32 是空格
-					grid = newGrid(32, nil)
+					grid = newGrid(' ', nil)
 				}
 				result = append(result, grid.output())
 				c += grid.width()
@@ -153,7 +152,7 @@ func (s *Screen) getCursorCoordinate(row int, col int) Coordinate {
 	return s.cursorMap[Coordinate{col, row}]
 }
 
-// CursorMapS 返回 cursorMap 的字符串，用于调试
-func (s *Screen) CursorMapS() string {
+// 返回 cursorMap 的字符串，用于调试
+func (s *Screen) cursorMapS() string {
 	return fmt.Sprintf("%v", s.cursorMap)
 }

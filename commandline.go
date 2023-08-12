@@ -8,7 +8,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/yetsing/startprompt/inputstream"
 	"github.com/yetsing/startprompt/lexer"
 	"github.com/yetsing/startprompt/terminalcode"
 )
@@ -37,9 +36,9 @@ type CommandLine struct {
 }
 
 func (c *CommandLine) ReadInput() string {
-	line := inputstream.NewLine()
-	handler := inputstream.NewBaseHandler(line)
-	is := inputstream.NewInputStream(handler)
+	line := NewLine(newBaseCode)
+	handler := NewBaseHandler(line)
+	is := NewInputStream(handler)
 	var r rune
 	var err error
 	reader := c.reader
@@ -52,28 +51,26 @@ func (c *CommandLine) ReadInput() string {
 		DebugLog("read rune: %d", r)
 		is.Feed(r)
 		DebugLog("feed: %d", r)
-		doc := line.Document()
-		c.draw(doc)
+		c.draw(line)
+		if line.abort || line.accept {
+			inputText = line.text()
+			break
+		}
 		DebugLog("draw document")
 		if r == ctrlKey('q') {
 			DebugLog("exit normally")
 			c.running = false
 			break
 		}
-		if line.Finished() {
-			inputText = doc.Text()
-			break
-		}
 	}
 	DebugLog("return input: <%s>", inputText)
-	if len(inputText) > 0 {
-		c.OutputStringf("\r\n")
-	}
 	return inputText
 }
 
-func (c *CommandLine) draw(doc *inputstream.Document) {
-	text := doc.Text()
+func (c *CommandLine) draw(line *Line) {
+	renderCtx := line.GetRenderContext()
+	// 为了防止在重画屏幕的过程中，光标出现闪烁，我们先隐藏光标，最后在显示光标
+	// 参考：https://viewsourcecode.org/snaptoken/kilo/03.rawInputAndOutput.html#hide-the-cursor-when-repainting
 	// 隐藏光标
 	c.writeString(terminalcode.HideCursor)
 	// 移动光标到行首
@@ -82,24 +79,31 @@ func (c *CommandLine) draw(doc *inputstream.Document) {
 	c.writeString(terminalcode.EraseDown)
 
 	screen := NewScreen(defaultSchema)
-	screen.WriteTokens(c.tokensFunc(text))
+	screen.WriteTokens(renderCtx.code.GetTokens())
 	screen.saveInputPos()
 	result, lastCoordinate := screen.Output()
 	c.writeString(result)
 
-	// 移动光标
-	cursorCoordinate := screen.getCursorCoordinate(doc.CursorPositionRow(), doc.CursorPositionCol())
-	lastX := lastCoordinate.X
-	if lastCoordinate.Y > cursorCoordinate.Y {
-		c.writeString(terminalcode.CursorUp(lastCoordinate.Y - cursorCoordinate.Y))
-	}
-	if lastX > cursorCoordinate.X {
-		c.writeString(terminalcode.CursorBackward(lastX - cursorCoordinate.X))
-	} else if lastX < cursorCoordinate.X {
-		c.writeString(terminalcode.CursorForward(cursorCoordinate.X - lastX))
+	// 用户输入完毕或者放弃输入
+	if renderCtx.accept || renderCtx.abort {
+		// 另起一行
+		c.writeString(terminalcode.CRLF)
+	} else {
+		doc := line.Document()
+		// 移动光标
+		cursorCoordinate := screen.getCursorCoordinate(doc.CursorPositionRow(), doc.CursorPositionCol())
+		lastX := lastCoordinate.X
+		if lastCoordinate.Y > cursorCoordinate.Y {
+			c.writeString(terminalcode.CursorUp(lastCoordinate.Y - cursorCoordinate.Y))
+		}
+		if lastX > cursorCoordinate.X {
+			c.writeString(terminalcode.CursorBackward(lastX - cursorCoordinate.X))
+		} else if lastX < cursorCoordinate.X {
+			c.writeString(terminalcode.CursorForward(cursorCoordinate.X - lastX))
+		}
 	}
 	// 显示光标
-	c.writeString("\x1b[?25h")
+	c.writeString(terminalcode.DisplayCursor)
 	c.flush()
 }
 
@@ -114,13 +118,14 @@ func (c *CommandLine) flush() {
 	ensureOk(err)
 }
 
-// OutputString 直接输出字符串（无缓冲）
-func (c *CommandLine) OutputString(s string) {
+// Print 输出字符串
+func (c *CommandLine) Print(s string) {
 	c.writeString(s)
 	c.flush()
 }
 
-func (c *CommandLine) OutputStringf(format string, a ...any) {
+// Printf 输出格式化字符串
+func (c *CommandLine) Printf(format string, a ...any) {
 	c.writeString(fmt.Sprintf(format, a...))
 	c.flush()
 }
@@ -131,7 +136,7 @@ type Position struct {
 }
 
 func (c *CommandLine) getCursorPosition() Position {
-	c.OutputString("\x1b[6n")
+	c.Print("\x1b[6n")
 	var buf [32]byte
 	var i int
 	// 回复格式为 \x1b[A;BR

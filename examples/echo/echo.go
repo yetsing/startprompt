@@ -1,5 +1,9 @@
 package main
 
+/*
+读取用户输入并将其打印出来
+*/
+
 import (
 	"fmt"
 	"github.com/yetsing/startprompt"
@@ -15,6 +19,6 @@ func main() {
 	}
 	for c.Running() {
 		line := c.ReadInput()
-		c.OutputStringf("echo: %s\r\n", line)
+		c.Printf("echo: %s\r\n", line)
 	}
 }

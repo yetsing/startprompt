@@ -1,4 +1,4 @@
-package inputstream
+package startprompt
 
 import (
 	"fmt"
@@ -9,12 +9,12 @@ import (
 // 解析 VT100 输入流数据
 // 参考：https://vt100.net/docs/vt100-ug/chapter3.html
 
-func NewInputStream(handler Handler) *InputStream {
+func NewInputStream(handler InputStreamHandler) *InputStream {
 	return &InputStream{handler: handler}
 }
 
 type InputStream struct {
-	handler  Handler
+	handler  InputStreamHandler
 	previous string
 }
 

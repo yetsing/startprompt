@@ -6,13 +6,13 @@
 因为非 ASCII 字符（比如中文）会占用 2 个或者多个 x 。
 两个坐标都是从 0 开始计数。
 
-inputstream.InputStream 负责解析输入，触发相应事件，调用 inputstream.Handler 处理事件
+InputStream 负责解析输入，触发相应事件，调用 InputStreamHandler 处理事件
 
-inputstream.Handler 负责处理事件，调用 inputstream.Line 实现各种操作
+InputStreamHandler 负责处理事件，调用 Line 实现各种操作
 
-inputstream.Line 封装了文本和光标的操作
+Line 封装了文本和光标的操作
 
-inputstream.Document 保存文本和光标位置，提供一些辅助方法
+Document 保存文本和光标位置，提供一些辅助方法
 
 Screen 负责缓冲输出文本和样式
 

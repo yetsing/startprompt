@@ -3,6 +3,8 @@ package token
 type TokenType string
 
 const (
+	UNSPECIFIC TokenType = "unspecific"
+
 	ILLEGAL TokenType = "ILLEGAL"
 	EOF     TokenType = "EOF"
 
