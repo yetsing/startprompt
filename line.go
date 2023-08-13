@@ -23,19 +23,24 @@ type Line struct {
 	buffer []rune
 	// 光标在文本 buffer 中的位置
 	cursorPosition int
-	newCodeFunc    NewCodeFunc
 	undoStack      []*_UndoEntry
+
+	render        *rRenderer
+	newCodeFunc   NewCodeFunc
+	newPromptFunc NewPromptFunc
 
 	accept bool
 	abort  bool
 }
 
-func NewLine(newCodeFunc NewCodeFunc) *Line {
+func newLine(render *rRenderer, newCodeFunc NewCodeFunc, newPromptFunc NewPromptFunc) *Line {
 	return &Line{
 		buffer:         nil,
 		cursorPosition: 0,
-		newCodeFunc:    newCodeFunc,
 		abort:          false,
+		render:         render,
+		newCodeFunc:    newCodeFunc,
+		newPromptFunc:  newPromptFunc,
 	}
 }
 
@@ -127,6 +132,10 @@ func (l *Line) DeleteCharacterAfterCursor(count int) string {
 	return string(deleted)
 }
 
+func (l *Line) Newline() {
+	l.InsertText([]rune{'\n'})
+}
+
 func (l *Line) InsertText(data []rune) {
 	// 在 cursorPosition 的位置插入 data
 	if len(data) == 0 {
@@ -181,7 +190,10 @@ func (l *Line) HasText() bool {
 
 // ListCompletions 展示所有补全 todo
 func (l *Line) ListCompletions() {
-	l.CreateCodeObj().GetCompletions()
+	results := l.CreateCodeObj().GetCompletions()
+	if len(results) > 0 && l.render != nil {
+		l.render.renderCompletions(results)
+	}
 }
 
 // Complete 自动补全，如果有补全返回 true
@@ -195,6 +207,12 @@ func (l *Line) Complete() bool {
 	} else {
 		return false
 	}
+}
+
+func (l *Line) IsMultiline() bool {
+	res := l.CreateCodeObj().IsMultiline()
+	DebugLog("IsMultiline: %v", res)
+	return res
 }
 
 func (l *Line) text() string {
@@ -211,5 +229,11 @@ func (l *Line) CreateCodeObj() Code {
 }
 
 func (l *Line) GetRenderContext() *RenderContext {
-	return newRenderContext(l.CreateCodeObj(), l.accept, l.abort)
+	code := l.CreateCodeObj()
+	prompt := l.newPromptFunc(l, code)
+	return newRenderContext(
+		prompt,
+		code,
+		l.Document(),
+		l.accept, l.abort)
 }

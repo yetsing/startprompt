@@ -1,17 +1,21 @@
 package startprompt
 
 type RenderContext struct {
-	code Code
+	prompt   Prompt
+	code     Code
+	document *Document
 	// 表示用户已经输入完毕
 	accept bool
 	// 表示用户已经放弃输入
 	abort bool
 }
 
-func newRenderContext(code Code, accept bool, abort bool) *RenderContext {
+func newRenderContext(prompt Prompt, code Code, document *Document, accept bool, abort bool) *RenderContext {
 	return &RenderContext{
-		code:   code,
-		accept: accept,
-		abort:  abort,
+		prompt:   prompt,
+		code:     code,
+		document: document,
+		accept:   accept,
+		abort:    abort,
 	}
 }

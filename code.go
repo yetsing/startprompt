@@ -2,6 +2,7 @@ package startprompt
 
 import (
 	"github.com/yetsing/startprompt/token"
+	"strings"
 )
 
 type Completion struct {
@@ -21,10 +22,9 @@ type Code interface {
 	Complete() string
 	// GetCompletions 返回当前可选的补全列表，供用户选择，例如连按两次 tab 出现的补全列表
 	GetCompletions() []*Completion
-	// Enter 用户按下 Enter 键时调用，
-	// 返回 true 表示用户输入完成， CommandLine.ReadInput 则会返回用户输入
-	// 返回 false 表示用户可以继续输入，文本会另起一行
-	Enter() bool
+	// IsMultiline 用户按下 Enter 键时调用，
+	// 返回 true 表示需要多行输入
+	IsMultiline() bool
 }
 
 type _BaseCode struct {
@@ -49,9 +49,23 @@ func (c *_BaseCode) Complete() string {
 }
 
 func (c *_BaseCode) GetCompletions() []*Completion {
-	return nil
+	return []*Completion{
+		{
+			Display: "hello",
+			Suffix:  "hello",
+		},
+		{
+			Display: "world",
+			Suffix:  "world",
+		},
+		{
+			Display: "中文",
+			Suffix:  "中文",
+		},
+	}
 }
 
-func (c *_BaseCode) Enter() bool {
-	return false
+func (c *_BaseCode) IsMultiline() bool {
+	text := c.document.Text()
+	return !strings.HasSuffix(text, "\n")
 }

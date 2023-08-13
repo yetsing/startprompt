@@ -36,9 +36,11 @@ type CommandLine struct {
 }
 
 func (c *CommandLine) ReadInput() string {
-	line := NewLine(newBaseCode)
+	render := newRender(defaultSchema)
+	line := newLine(render, newBaseCode, newBasePrompt)
 	handler := NewBaseHandler(line)
 	is := NewInputStream(handler)
+	render.render(line.GetRenderContext())
 	var r rune
 	var err error
 	reader := c.reader
@@ -51,7 +53,8 @@ func (c *CommandLine) ReadInput() string {
 		DebugLog("read rune: %d", r)
 		is.Feed(r)
 		DebugLog("feed: %d", r)
-		c.draw(line)
+		render.render(line.GetRenderContext())
+		//c.draw(line)
 		if line.abort || line.accept {
 			inputText = line.text()
 			break
@@ -78,8 +81,8 @@ func (c *CommandLine) draw(line *Line) {
 	// 删除当行到屏幕下方
 	c.writeString(terminalcode.EraseDown)
 
-	screen := NewScreen(defaultSchema)
-	screen.WriteTokens(renderCtx.code.GetTokens())
+	screen := NewScreen(defaultSchema, 0)
+	screen.WriteTokens(renderCtx.code.GetTokens(), true)
 	screen.saveInputPos()
 	result, lastCoordinate := screen.Output()
 	c.writeString(result)
@@ -182,6 +185,12 @@ func (c *CommandLine) Restore() {
 }
 
 func NewCommandLine(tokensFunc lexer.GetTokensFunc, debug bool) (*CommandLine, error) {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return nil, fmt.Errorf("not in a terminal")
+	}
+	if !term.IsTerminal(int(os.Stdout.Fd())) {
+		return nil, fmt.Errorf("not in a terminal")
+	}
 	// 开启 terminal raw mode
 	// 这种模式下会拿到用户原始的输入，比如输入 Ctrl-c 时，不会中断当前程序，而是拿到 Ctrl-c 的表示
 	// 不会自动展示用户输入

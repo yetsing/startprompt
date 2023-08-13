@@ -3,7 +3,9 @@ package token
 type TokenType string
 
 const (
-	UNSPECIFIC TokenType = "unspecific"
+	UNSPECIFIC             TokenType = "unspecific"
+	Prompt                 TokenType = "prompt"
+	PromptSecondLinePrefix TokenType = "Prompt.SecondLinePrefix"
 
 	ILLEGAL TokenType = "ILLEGAL"
 	EOF     TokenType = "EOF"

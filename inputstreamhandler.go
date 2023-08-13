@@ -51,11 +51,11 @@ func (b *BaseHandler) Handle(event Event, a ...rune) {
 		b.tab()
 	// enter 按下
 	case ctrl_j:
-		line.ReturnInput()
+		b.enter()
 	case ctrl_k:
 	case ctrl_l:
 	case ctrl_m:
-		line.ReturnInput()
+		b.enter()
 	case ctrl_n:
 	case ctrl_o:
 	case ctrl_p:
@@ -107,9 +107,19 @@ func (b *BaseHandler) tab() {
 	if b.secondTab {
 		// 两次 tab 会展示补全列表
 		// 效果类似于 bash 里面按 tab 两次
+		b.line.ListCompletions()
 		b.secondTab = false
 	} else {
 		// 有补全的话，就不需要触发两次 tab 的效果了
 		b.secondTab = !b.line.Complete()
+	}
+}
+
+func (b *BaseHandler) enter() {
+	line := b.line
+	if line.IsMultiline() {
+		line.Newline()
+	} else {
+		line.ReturnInput()
 	}
 }

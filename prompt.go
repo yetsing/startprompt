@@ -1,0 +1,55 @@
+package startprompt
+
+import (
+	"github.com/mattn/go-runewidth"
+	"github.com/yetsing/startprompt/token"
+	"strings"
+	"unicode"
+)
+
+type NewPromptFunc func(line *Line, code Code) Prompt
+
+type Prompt interface {
+	// GetPrompt 获取输入的提示符
+	GetPrompt() []token.Token
+	// GetSecondLinePrefix 获取输入第二行及之后行开始的提示符
+	GetSecondLinePrefix() []token.Token
+}
+
+type basePrompt struct {
+}
+
+//goland:noinspection GoUnusedParameter
+func newBasePrompt(line *Line, code Code) Prompt {
+	return &basePrompt{}
+}
+
+func (b *basePrompt) GetPrompt() []token.Token {
+	tk := token.Token{
+		Type:    token.Prompt,
+		Literal: "> ",
+	}
+	return []token.Token{tk}
+}
+
+func (b *basePrompt) GetSecondLinePrefix() []token.Token {
+	// 拿到默认提示符宽度
+	var sb strings.Builder
+	for _, t := range b.GetPrompt() {
+		sb.WriteString(t.Literal)
+	}
+	promptText := sb.String()
+	width := runewidth.StringWidth(strings.TrimRightFunc(promptText, unicode.IsSpace))
+	spaces := runewidth.StringWidth(promptText) - width
+	// 输出类似这样的 "...  " ，宽度跟默认提示符一样
+	return []token.Token{
+		{
+			token.PromptSecondLinePrefix,
+			repeatByte('.', width),
+		},
+		{
+			token.PromptSecondLinePrefix,
+			repeatByte(' ', spaces),
+		},
+	}
+}
