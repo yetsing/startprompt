@@ -49,6 +49,7 @@ func (c *_BaseCode) Complete() string {
 }
 
 func (c *_BaseCode) GetCompletions() []*Completion {
+	// for test
 	return []*Completion{
 		{
 			Display: "hello",
@@ -66,6 +67,7 @@ func (c *_BaseCode) GetCompletions() []*Completion {
 }
 
 func (c *_BaseCode) IsMultiline() bool {
+	// for test
 	text := c.document.Text()
 	return !strings.HasSuffix(text, "\n")
 }

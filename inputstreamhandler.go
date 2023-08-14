@@ -45,7 +45,7 @@ func (b *BaseHandler) Handle(event Event, a ...rune) {
 	case ctrl_g:
 		// todo Abort an incremental search and restore the original line
 	case ctrl_h:
-		line.DeleteCharacterBeforeCursor()
+		line.DeleteCharacterBeforeCursor(1)
 	case ctrl_i:
 		// ctrl_i 相当于 "\t"
 		b.tab()
@@ -53,8 +53,11 @@ func (b *BaseHandler) Handle(event Event, a ...rune) {
 	case ctrl_j:
 		b.enter()
 	case ctrl_k:
+		line.DeleteUntilEndOfLine()
 	case ctrl_l:
+		line.Clear()
 	case ctrl_m:
+		// ctrl_m 相等于 "\r" ，我们把他当成 \n 的效果
 		b.enter()
 	case ctrl_n:
 	case ctrl_o:
@@ -64,8 +67,10 @@ func (b *BaseHandler) Handle(event Event, a ...rune) {
 	case ctrl_s:
 	case ctrl_t:
 	case ctrl_u:
+		line.DeleteFromStartOfLine()
 	case ctrl_v:
 	case ctrl_w:
+		line.DeleteWordBeforeCursor()
 	case ctrl_x:
 	case ctrl_y:
 	case ctrl_z:
@@ -74,7 +79,7 @@ func (b *BaseHandler) Handle(event Event, a ...rune) {
 	case ctrl_circumflex:
 	case ctrl_underscore:
 	case backspace:
-		line.DeleteCharacterBeforeCursor()
+		line.DeleteCharacterBeforeCursor(1)
 	case arrow_up:
 	case arrow_down:
 	case arrow_right:

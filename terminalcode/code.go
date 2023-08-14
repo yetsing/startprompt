@@ -6,7 +6,7 @@ import "fmt"
 const (
 	// EraseScreen
 	// https://vt100.net/docs/vt100-ug/chapter3.html#ED
-	// 擦除整个屏幕并且移动光标到左上角
+	// 擦除整个屏幕
 	EraseScreen = "\x1b[2J"
 
 	// EraseEndOfLine https://vt100.net/docs/vt100-ug/chapter3.html#EL

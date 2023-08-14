@@ -25,7 +25,7 @@ type Line struct {
 	cursorPosition int
 	undoStack      []*_UndoEntry
 
-	render        *rRenderer
+	renderer      *rRenderer
 	newCodeFunc   NewCodeFunc
 	newPromptFunc NewPromptFunc
 
@@ -38,7 +38,7 @@ func newLine(render *rRenderer, newCodeFunc NewCodeFunc, newPromptFunc NewPrompt
 		buffer:         nil,
 		cursorPosition: 0,
 		abort:          false,
-		render:         render,
+		renderer:       render,
 		newCodeFunc:    newCodeFunc,
 		newPromptFunc:  newPromptFunc,
 	}
@@ -114,12 +114,21 @@ func (l *Line) CursorToEndOfLine() {
 	l.cursorPosition += utf8.RuneCountInString(l.Document().currentLineAfterCursor())
 }
 
-func (l *Line) DeleteCharacterBeforeCursor() string {
+// DeleteWordBeforeCursor 删除光标前的单词，返回删除的单词
+func (l *Line) DeleteWordBeforeCursor() string {
+	toDelete := -l.Document().findStartOfPreviousWord()
+	if toDelete > 0 {
+		return l.DeleteCharacterBeforeCursor(toDelete)
+	}
+	return ""
+}
+
+func (l *Line) DeleteCharacterBeforeCursor(count int) string {
 	if l.cursorPosition == 0 {
 		return ""
 	}
-	deleted := l.removeRunes(l.cursorPosition-1, 1)
-	l.cursorPosition--
+	deleted := l.removeRunes(l.cursorPosition-count, count)
+	l.cursorPosition -= len(deleted)
 	return string(deleted)
 }
 
@@ -130,6 +139,20 @@ func (l *Line) DeleteCharacterAfterCursor(count int) string {
 	}
 	deleted := l.removeRunes(l.cursorPosition, count)
 	return string(deleted)
+}
+
+// DeleteUntilEndOfLine 删除从光标到行尾处的字符，返回删除的字符
+func (l *Line) DeleteUntilEndOfLine() string {
+	after := l.Document().currentLineAfterCursor()
+	l.DeleteCharacterAfterCursor(utf8.RuneCountInString(after))
+	return after
+}
+
+// DeleteFromStartOfLine 删除从行首到光标处的字符，返回删除的字符
+func (l *Line) DeleteFromStartOfLine() string {
+	before := l.Document().currentLineBeforeCursor()
+	l.DeleteCharacterBeforeCursor(utf8.RuneCountInString(before))
+	return before
 }
 
 func (l *Line) Newline() {
@@ -191,8 +214,8 @@ func (l *Line) HasText() bool {
 // ListCompletions 展示所有补全 todo
 func (l *Line) ListCompletions() {
 	results := l.CreateCodeObj().GetCompletions()
-	if len(results) > 0 && l.render != nil {
-		l.render.renderCompletions(results)
+	if len(results) > 0 && l.renderer != nil {
+		l.renderer.renderCompletions(results)
 	}
 }
 
@@ -213,6 +236,12 @@ func (l *Line) IsMultiline() bool {
 	res := l.CreateCodeObj().IsMultiline()
 	DebugLog("IsMultiline: %v", res)
 	return res
+}
+
+func (l *Line) Clear() {
+	if l.renderer != nil {
+		l.renderer.clear()
+	}
 }
 
 func (l *Line) text() string {

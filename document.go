@@ -2,10 +2,17 @@ package startprompt
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
+)
+
+const (
+	// [^a-zA-Z0-9_\s\[\]\{\}\(\)\.] 除 a-z A-Z 0-9 _ 空白字符 [] {} () . 等字符
+	findWordRE    = `([a-zA-Z0-9_]+|[^a-zA-Z0-9_\s\[\]\{\}\(\)\.]+)`
+	findBigWordRE = `([^\s\[\]\{\}\(\)\.]+)`
 )
 
 type _DocumentCache struct {
@@ -199,6 +206,21 @@ func (d *Document) isCursorAtTheEndOfLine() bool {
 // 当光标位于字符串 sub 开头时返回 true
 func (d *Document) hasMatchAtCurrentPosition(sub string) bool {
 	return strings.HasPrefix(d.textAfterCursor(), sub)
+}
+
+func (d *Document) findStartOfPreviousWord() int {
+	textBeforeCursor := d.textBeforeCursor()
+	if len(textBeforeCursor) == 0 {
+		return 0
+	}
+	textBeforeCursor = reverseString(textBeforeCursor)
+	r := regexp.MustCompile(findBigWordRE)
+	loc := r.FindStringIndex(textBeforeCursor)
+	if loc != nil {
+		return -utf8.RuneCountInString(textBeforeCursor[:loc[1]])
+	} else {
+		return 0
+	}
 }
 
 // ================

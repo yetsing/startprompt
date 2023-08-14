@@ -32,17 +32,31 @@ type CommandLine struct {
 	running        bool
 	tokensFunc     lexer.GetTokensFunc
 	enableDebugLog bool
-	oldState       *term.State
 }
 
-func (c *CommandLine) ReadInput() string {
+func (c *CommandLine) ReadInput() (string, error) {
+	// 开启 terminal raw mode
+	// 这种模式下会拿到用户原始的输入，比如输入 Ctrl-c 时，不会中断当前程序，而是拿到 Ctrl-c 的表示
+	// 不会自动展示用户输入
+	// 更多说明解释参考：https://viewsourcecode.org/snaptoken/kilo/02.enteringRawMode.html
+	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		err := term.Restore(int(os.Stdin.Fd()), oldState)
+		if err != nil {
+			fmt.Printf("term.Restore error: %v\r\n", err)
+		}
+	}()
+
 	render := newRender(defaultSchema)
 	line := newLine(render, newBaseCode, newBasePrompt)
 	handler := NewBaseHandler(line)
 	is := NewInputStream(handler)
 	render.render(line.GetRenderContext())
+
 	var r rune
-	var err error
 	reader := c.reader
 	var inputText string
 	for true {
@@ -54,6 +68,7 @@ func (c *CommandLine) ReadInput() string {
 		is.Feed(r)
 		DebugLog("feed: %d", r)
 		render.render(line.GetRenderContext())
+		DebugLog("terminal width: %d", render.getWidth())
 		//c.draw(line)
 		if line.abort || line.accept {
 			inputText = line.text()
@@ -67,7 +82,7 @@ func (c *CommandLine) ReadInput() string {
 		}
 	}
 	DebugLog("return input: <%s>", inputText)
-	return inputText
+	return inputText, nil
 }
 
 func (c *CommandLine) draw(line *Line) {
@@ -177,27 +192,12 @@ func (c *CommandLine) Running() bool {
 	return c.running
 }
 
-func (c *CommandLine) Restore() {
-	err := term.Restore(int(os.Stdin.Fd()), c.oldState)
-	if err != nil {
-		fmt.Printf("restore error: %v\r\n", err)
-	}
-}
-
 func NewCommandLine(tokensFunc lexer.GetTokensFunc, debug bool) (*CommandLine, error) {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return nil, fmt.Errorf("not in a terminal")
 	}
 	if !term.IsTerminal(int(os.Stdout.Fd())) {
 		return nil, fmt.Errorf("not in a terminal")
-	}
-	// 开启 terminal raw mode
-	// 这种模式下会拿到用户原始的输入，比如输入 Ctrl-c 时，不会中断当前程序，而是拿到 Ctrl-c 的表示
-	// 不会自动展示用户输入
-	// 更多说明解释参考：https://viewsourcecode.org/snaptoken/kilo/02.enteringRawMode.html
-	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
-	if err != nil {
-		return nil, err
 	}
 
 	reader := bufio.NewReader(os.Stdin)
@@ -212,6 +212,5 @@ func NewCommandLine(tokensFunc lexer.GetTokensFunc, debug bool) (*CommandLine, e
 		writer:     writer,
 		running:    true,
 		tokensFunc: tokensFunc,
-		oldState:   oldState,
 	}, nil
 }

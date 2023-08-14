@@ -12,13 +12,16 @@ import (
 
 func main() {
 	c, err := startprompt.NewCommandLine(lexer.GetMonkeyTokens, true)
-	defer c.Restore()
 	if err != nil {
 		fmt.Printf("failed to startprompt.NewCommandLine: %v\n", err)
 		return
 	}
 	for c.Running() {
-		line := c.ReadInput()
-		c.Printf("echo: %s\r\n", line)
+		line, err := c.ReadInput()
+		if err != nil {
+			fmt.Printf("ReadInput error: %v\n", err)
+			break
+		}
+		fmt.Println("echo:", line)
 	}
 }

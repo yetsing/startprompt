@@ -25,7 +25,7 @@ type rRenderer struct {
 }
 
 func (r *rRenderer) getWidth() int {
-	_, width := getSize(int(os.Stdout.Fd()))
+	width, _ := getSize(int(os.Stdin.Fd()))
 	return width
 }
 
@@ -146,6 +146,12 @@ func (r *rRenderer) inColumns(items []string, marginLeft int) []string {
 		lines = append(lines, buf.String())
 	}
 	return lines
+}
+
+// 清空屏幕，移动到左上角
+func (r *rRenderer) clear() {
+	r.write(terminalcode.EraseScreen)
+	r.write(terminalcode.CursorGoto(0, 0))
 }
 
 func (r *rRenderer) write(s string) {
