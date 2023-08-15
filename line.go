@@ -20,6 +20,8 @@ type _UndoEntry struct {
 }
 
 type Line struct {
+	// string 类型的下标切片是按字节来的，而不是 Unicode
+	// 为了方便增删改，选择使用 []rune
 	buffer []rune
 	// 光标在文本 buffer 中的位置
 	cursorPosition int
@@ -29,19 +31,24 @@ type Line struct {
 	newCodeFunc   NewCodeFunc
 	newPromptFunc NewPromptFunc
 
+	history History
+
 	accept bool
 	abort  bool
+
+	workingLines []string
+	workingIndex int
 }
 
-func newLine(render *rRenderer, newCodeFunc NewCodeFunc, newPromptFunc NewPromptFunc) *Line {
-	return &Line{
-		buffer:         nil,
-		cursorPosition: 0,
-		abort:          false,
-		renderer:       render,
-		newCodeFunc:    newCodeFunc,
-		newPromptFunc:  newPromptFunc,
+func newLine(render *rRenderer, newCodeFunc NewCodeFunc, newPromptFunc NewPromptFunc, history History) *Line {
+	line := &Line{
+		renderer:      render,
+		newCodeFunc:   newCodeFunc,
+		newPromptFunc: newPromptFunc,
+		history:       history,
 	}
+	line.reset()
+	return line
 }
 
 func (l *Line) reset() {
@@ -50,6 +57,19 @@ func (l *Line) reset() {
 	l.undoStack = nil
 	l.accept = false
 	l.abort = false
+	lines := l.history.GetAll()
+	l.workingLines = make([]string, len(lines))
+	copy(l.workingLines, lines)
+	l.workingIndex = len(l.workingLines) - 1
+}
+
+func (l *Line) text() string {
+	return string(l.buffer)
+}
+
+func (l *Line) setText(buffer []rune) {
+	l.buffer = buffer
+	l.textChanged()
 }
 
 func (l *Line) GetCursorPosition() int {
@@ -60,10 +80,23 @@ func (l *Line) SetCursorPosition(v int) {
 	l.cursorPosition = maxInt(0, v)
 }
 
+func (l *Line) getWorkingIndex() int {
+	return l.workingIndex
+}
+
+func (l *Line) setWorkingIndex(value int) {
+	l.workingIndex = value
+	l.textChanged()
+}
+
+func (l *Line) textChanged() {
+
+}
+
 // SaveToUndoStack 保存当前信息（文本和光标位置），支持 undo 操作
 func (l *Line) SaveToUndoStack() {
 	entry := &_UndoEntry{
-		text:           string(l.buffer),
+		text:           l.text(),
 		cursorPosition: l.cursorPosition,
 	}
 	// 如果文本与最后一个的不相同，保存当前信息
@@ -156,18 +189,37 @@ func (l *Line) DeleteFromStartOfLine() string {
 }
 
 func (l *Line) Newline() {
-	l.InsertText([]rune{'\n'})
+	l.InsertText([]rune{'\n'}, true)
 }
 
-func (l *Line) InsertText(data []rune) {
-	// 在 cursorPosition 的位置插入 data
-	if len(data) == 0 {
-		return
+// OverwriteText 覆盖光标位置到行尾最多 len(data) 长度数据，
+// moveCursor 表示插入后是否移动光标
+func (l *Line) OverwriteText(data []rune, moveCursor bool) {
+	overwrittenRunes := sliceRunes(l.buffer, l.cursorPosition, l.cursorPosition+len(data))
+	nlIndex := findRunes(overwrittenRunes, '\n')
+	// 最多覆盖到行尾
+	if nlIndex > -1 {
+		overwrittenRunes = sliceRunes(l.buffer, l.cursorPosition, nlIndex)
 	}
+	l.buffer = concatRunes(
+		l.buffer[:l.cursorPosition],
+		data,
+		l.buffer[l.cursorPosition+len(overwrittenRunes):],
+	)
+	if moveCursor {
+		l.cursorPosition += len(data)
+	}
+}
+
+// InsertText 在 cursorPosition 的位置插入 data
+// moveCursor 表示插入后是否移动光标
+func (l *Line) InsertText(data []rune, moveCursor bool) {
 	for i, r := range data {
 		l.insertRune(l.cursorPosition+i, r)
 	}
-	l.cursorPosition += len(data)
+	if moveCursor {
+		l.cursorPosition += len(data)
+	}
 }
 
 func (l *Line) insertRune(index int, value rune) {
@@ -242,10 +294,6 @@ func (l *Line) Clear() {
 	if l.renderer != nil {
 		l.renderer.clear()
 	}
-}
-
-func (l *Line) text() string {
-	return string(l.buffer)
 }
 
 func (l *Line) Document() *Document {

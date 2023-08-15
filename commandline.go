@@ -51,7 +51,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 	}()
 
 	render := newRender(defaultSchema)
-	line := newLine(render, newBaseCode, newBasePrompt)
+	line := newLine(render, newBaseCode, newBasePrompt, NewMemHistory())
 	handler := NewBaseHandler(line)
 	is := NewInputStream(handler)
 	render.render(line.GetRenderContext())

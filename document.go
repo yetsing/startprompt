@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 )
 
+//goland:noinspection ALL
 const (
 	// [^a-zA-Z0-9_\s\[\]\{\}\(\)\.] 除 a-z A-Z 0-9 _ 空白字符 [] {} () . 等字符
 	findWordRE    = `([a-zA-Z0-9_]+|[^a-zA-Z0-9_\s\[\]\{\}\(\)\.]+)`

@@ -30,3 +30,48 @@ func reverseString(s string) string {
 	}
 	return string(runes)
 }
+
+// 限制 n 的范围为 [0, high]
+func limitInt(n int, high int) int {
+	if high <= 0 {
+		panic("limitInt require high > 0")
+	}
+	if n < 0 {
+		n += high
+	}
+	if n < 0 {
+		n = 0
+	} else if n > high {
+		n = high
+	}
+	return n
+}
+
+// Python 方式切片（索引支持负数，索引可以超出范围）
+func sliceRunes(runes []rune, start int, end int) []rune {
+	length := len(runes)
+	return runes[limitInt(start, length):limitInt(end, length)]
+}
+
+func findRunes(runes []rune, r rune) int {
+	for i, r2 := range runes {
+		if r == r2 {
+			return i
+		}
+	}
+	return -1
+}
+
+func concatRunes(a ...[]rune) []rune {
+	resultLength := 0
+	for _, runes := range a {
+		resultLength += len(runes)
+	}
+	result := make([]rune, resultLength)
+	offset := 0
+	for _, runes := range a {
+		copy(result[offset:], runes)
+		offset += len(runes)
+	}
+	return result
+}

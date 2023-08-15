@@ -98,7 +98,7 @@ func (b *BaseHandler) Handle(event Event, a ...rune) {
 	case escape_action:
 
 	case insert_char:
-		line.InsertText(a)
+		line.InsertText(a, true)
 	}
 }
 
