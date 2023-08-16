@@ -140,3 +140,48 @@ func TestIsCursorAtTheEnd(t *testing.T) {
 	got = NewDocument("hello", 4).isCursorAtTheEnd()
 	testBoolEqual(t, false, got)
 }
+
+func TestFindNextWordEnding(t *testing.T) {
+	var got int
+	var want int
+	var doc *Document
+
+	doc = NewDocument("package", 0)
+	want = 7
+	got = doc.findNextWordEnding(true)
+	testIntEqual(t, want, got)
+	got = doc.findNextWordEnding(false)
+	testIntEqual(t, want, got)
+
+	doc = NewDocument(" package", 0)
+	want = 8
+	got = doc.findNextWordEnding(true)
+	testIntEqual(t, want, got)
+	got = doc.findNextWordEnding(false)
+	testIntEqual(t, want, got)
+
+	doc = NewDocument(" package ", 0)
+	want = 8
+	got = doc.findNextWordEnding(true)
+	testIntEqual(t, want, got)
+	got = doc.findNextWordEnding(false)
+	testIntEqual(t, want, got)
+
+	doc = NewDocument("e a", 0)
+	got = doc.findNextWordEnding(true)
+	testIntEqual(t, 1, got)
+	got = doc.findNextWordEnding(false)
+	testIntEqual(t, 3, got)
+
+	doc = NewDocument("e ab", 0)
+	got = doc.findNextWordEnding(true)
+	testIntEqual(t, 1, got)
+	got = doc.findNextWordEnding(false)
+	testIntEqual(t, 4, got)
+
+	doc = NewDocument("e ab      ", 0)
+	got = doc.findNextWordEnding(true)
+	testIntEqual(t, 1, got)
+	got = doc.findNextWordEnding(false)
+	testIntEqual(t, 4, got)
+}

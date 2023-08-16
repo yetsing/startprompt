@@ -194,6 +194,56 @@ func (d *Document) translateRowColToIndex(row int, col int) int {
 	return result
 }
 
+// CursorUpPosition 返回光标往上移动一行后位置。如果光标位于第一行，返回 -1 。
+func (d *Document) CursorUpPosition() int {
+	text := d.textBeforeCursor()
+	if strings.ContainsRune(text, '\n') {
+		lines := strings.Split(text, "\n")
+		length := len(lines)
+		// 光标所在行
+		currentLine := lines[length-1]
+		// 光标的上一行
+		previousLine := lines[length-2]
+
+		currentLineLength := utf8.RuneCountInString(currentLine)
+		previousLineLength := utf8.RuneCountInString(previousLine)
+
+		// 如果光标前文本比上一行长，光标会移动到上一行行尾
+		if currentLineLength > previousLineLength {
+			return d.cursorPosition - currentLineLength - 1
+		} else {
+			// 否则找到上一行对应的位置
+			return d.cursorPosition - previousLineLength - 1
+		}
+	}
+	return -1
+}
+
+// CursorDownPosition 返回光标往下移动一行后位置。如果光标位于最后一行，返回 -1 。
+func (d *Document) CursorDownPosition() int {
+	text := d.textAfterCursor()
+	if strings.ContainsRune(text, '\n') {
+		pos := utf8.RuneCountInString(d.currentLineBeforeCursor())
+		lines := strings.Split(text, "\n")
+		// 光标所在行
+		currentLine := lines[0]
+		// 光标的下一行
+		nextLine := lines[1]
+
+		currentLineLength := utf8.RuneCountInString(currentLine)
+		nextLineLength := utf8.RuneCountInString(nextLine)
+
+		// 如果光标前文本比下一行长，光标会移动到下一行行尾
+		if pos > nextLineLength {
+			return d.cursorPosition + currentLineLength + nextLineLength + 1
+		} else {
+			// 否则找到下一行对应的位置
+			return d.cursorPosition + currentLineLength + pos + 1
+		}
+	}
+	return -1
+}
+
 // 光标是否在文本的最后面（最后一行的行尾）
 func (d *Document) isCursorAtTheEnd() bool {
 	return d.cursorPosition == len(d.runes)
@@ -209,6 +259,8 @@ func (d *Document) hasMatchAtCurrentPosition(sub string) bool {
 	return strings.HasPrefix(d.textAfterCursor(), sub)
 }
 
+// 找到光标前第一个单词开头的位置记为 S ，返回 S 与光标的相对位置
+// 找不到返回 0
 func (d *Document) findStartOfPreviousWord() int {
 	textBeforeCursor := d.textBeforeCursor()
 	if len(textBeforeCursor) == 0 {
@@ -221,6 +273,60 @@ func (d *Document) findStartOfPreviousWord() int {
 		return -utf8.RuneCountInString(textBeforeCursor[:loc[1]])
 	} else {
 		return 0
+	}
+}
+
+// 找到光标后第一个单词开头的位置记为 S ，返回 S 与光标的相对位置
+// 找不到返回 0
+func (d *Document) findNextWordBeginning() int {
+	text := d.textAfterCursor()
+	if len(text) == 0 {
+		return 0
+	}
+	r := regexp.MustCompile(findBigWordRE)
+	loc := r.FindStringIndex(text)
+	if loc != nil {
+		if loc[0] == 0 {
+			// 如果光标就在一个单词上面，那么就会匹配到这个单词，但是我们需要的是下一个
+			loc = r.FindStringIndex(text[loc[1]:])
+			if loc == nil {
+				return 0
+			}
+		}
+		return loc[0]
+	} else {
+		return 0
+	}
+}
+
+// 找到光标后第一个单词结尾的位置记为 S ，返回 S 与光标的相对位置
+// 找不到返回 0
+// includeCurrentPosition 是否包括光标处字符，之所以有这个选项，说明如下
+// 对于 vim 来说，按 e 可以移动到单词末尾，实际上光标是在单词最后一个字符的左边
+// 这个时候如果再按 e 跳到下一个单词末尾，那么在判断的时候需要忽略这个字符
+func (d *Document) findNextWordEnding(includeCurrentPosition bool) int {
+	text := d.textAfterCursor()
+	if !includeCurrentPosition {
+		text = stringStartAt(text, 1)
+	}
+	step := 0
+	inWord := false
+	for _, r := range text {
+		if isWordDelimiter(r) {
+			if inWord {
+				break
+			}
+			// 忽略开头的空格
+		} else {
+			inWord = true
+		}
+		step++
+	}
+	if includeCurrentPosition {
+		return step
+	} else {
+		// 因为跳过了光标处的字符，所以实际位置需要加 1
+		return step + 1
 	}
 }
 
