@@ -141,6 +141,58 @@ func TestIsCursorAtTheEnd(t *testing.T) {
 	testBoolEqual(t, false, got)
 }
 
+func TestFindStartOfPreviousWord(t *testing.T) {
+	var got int
+	var doc *Document
+
+	for i := 0; i < 10; i++ {
+		doc = NewDocument("package  ", i)
+		got = doc.findStartOfPreviousWord()
+		testIntEqual(t, 0-i, got)
+	}
+
+	doc = NewDocument("hello world", 11)
+	got = doc.findStartOfPreviousWord()
+	testIntEqual(t, -5, got)
+
+	doc = NewDocument("hello 中文", 8)
+	got = doc.findStartOfPreviousWord()
+	testIntEqual(t, -2, got)
+}
+
+func TestFindNextWordBeginning(t *testing.T) {
+	var got int
+	var want int
+	var doc *Document
+
+	doc = NewDocument("package", 0)
+	want = 0
+	got = doc.findNextWordBeginning()
+	testIntEqual(t, want, got)
+
+	doc = NewDocument(" package", 0)
+	want = 1
+	got = doc.findNextWordBeginning()
+	testIntEqual(t, want, got)
+
+	doc = NewDocument(" package ", 0)
+	want = 1
+	got = doc.findNextWordBeginning()
+	testIntEqual(t, want, got)
+
+	doc = NewDocument("e a", 0)
+	got = doc.findNextWordBeginning()
+	testIntEqual(t, 2, got)
+
+	doc = NewDocument("e ab", 0)
+	got = doc.findNextWordBeginning()
+	testIntEqual(t, 2, got)
+
+	doc = NewDocument("e ab      ", 0)
+	got = doc.findNextWordBeginning()
+	testIntEqual(t, 2, got)
+}
+
 func TestFindNextWordEnding(t *testing.T) {
 	var got int
 	var want int

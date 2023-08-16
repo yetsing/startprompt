@@ -2,18 +2,10 @@ package startprompt
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
-)
-
-//goland:noinspection ALL
-const (
-	// [^a-zA-Z0-9_\s\[\]\{\}\(\)\.] 除 a-z A-Z 0-9 _ 空白字符 [] {} () . 等字符
-	findWordRE    = `([a-zA-Z0-9_]+|[^a-zA-Z0-9_\s\[\]\{\}\(\)\.]+)`
-	findBigWordRE = `([^\s\[\]\{\}\(\)\.]+)`
 )
 
 type _DocumentCache struct {
@@ -262,18 +254,27 @@ func (d *Document) hasMatchAtCurrentPosition(sub string) bool {
 // 找到光标前第一个单词开头的位置记为 S ，返回 S 与光标的相对位置
 // 找不到返回 0
 func (d *Document) findStartOfPreviousWord() int {
-	textBeforeCursor := d.textBeforeCursor()
-	if len(textBeforeCursor) == 0 {
+	text := d.textBeforeCursor()
+	if len(text) == 0 {
 		return 0
 	}
-	textBeforeCursor = reverseString(textBeforeCursor)
-	r := regexp.MustCompile(findBigWordRE)
-	loc := r.FindStringIndex(textBeforeCursor)
-	if loc != nil {
-		return -utf8.RuneCountInString(textBeforeCursor[:loc[1]])
-	} else {
-		return 0
+	text = reverseString(text)
+
+	step := 0
+	inWord := false
+	for _, r := range text {
+		if isWordDelimiter(r) {
+			if inWord {
+				break
+			}
+			// 忽略开头的空格
+		} else {
+			inWord = true
+		}
+		step++
 	}
+	// 文本是反过来搜索的，所以要返回负数
+	return -step
 }
 
 // 找到光标后第一个单词开头的位置记为 S ，返回 S 与光标的相对位置
@@ -283,20 +284,22 @@ func (d *Document) findNextWordBeginning() int {
 	if len(text) == 0 {
 		return 0
 	}
-	r := regexp.MustCompile(findBigWordRE)
-	loc := r.FindStringIndex(text)
-	if loc != nil {
-		if loc[0] == 0 {
-			// 如果光标就在一个单词上面，那么就会匹配到这个单词，但是我们需要的是下一个
-			loc = r.FindStringIndex(text[loc[1]:])
-			if loc == nil {
-				return 0
+	// 下面这段代码有一点需要注意的是，需要忽略光标所在处的单词
+	step := 0
+	inSpace := false
+	for _, r := range text {
+		if isWordDelimiter(r) {
+			inSpace = true
+		} else {
+			if inSpace {
+				// 从空格到单词，说明是单词的开始
+				return step
 			}
 		}
-		return loc[0]
-	} else {
-		return 0
+		step++
 	}
+	// 没有找到下一个单词
+	return 0
 }
 
 // 找到光标后第一个单词结尾的位置记为 S ，返回 S 与光标的相对位置
