@@ -3,6 +3,8 @@ package startprompt
 import (
 	"bytes"
 	"golang.org/x/term"
+	"strings"
+	"unicode"
 )
 
 // 获取终端窗口大小，参考 https://stackoverflow.com/a/67087586
@@ -74,4 +76,20 @@ func concatRunes(a ...[]rune) []rune {
 		offset += len(runes)
 	}
 	return result
+}
+
+func isWordDelimiter(r rune) bool {
+	set := ".()[]{}"
+	return unicode.IsSpace(r) || strings.ContainsRune(set, r)
+}
+
+func stringStartAt(s string, start int) string {
+	c := 0
+	for i := range s {
+		if c == start {
+			return s[i:]
+		}
+		c++
+	}
+	return ""
 }
