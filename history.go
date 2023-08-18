@@ -12,6 +12,9 @@ import (
 type History interface {
 	GetAll() []string
 	Append(s string)
+	// GetAt 索引支持负数
+	GetAt(index int) string
+	Length() int
 }
 
 type MemHistory struct {
@@ -28,6 +31,17 @@ func (m *MemHistory) GetAll() []string {
 
 func (m *MemHistory) Append(s string) {
 	m.texts = append(m.texts, s)
+}
+
+func (m *MemHistory) GetAt(index int) string {
+	if index < 0 {
+		index += m.Length()
+	}
+	return m.texts[index]
+}
+
+func (m *MemHistory) Length() int {
+	return len(m.texts)
 }
 
 type FileHistory struct {

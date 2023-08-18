@@ -3,11 +3,105 @@ package startprompt
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"github.com/mattn/go-runewidth"
 	"github.com/yetsing/startprompt/terminalcode"
 	"github.com/yetsing/startprompt/token"
 	"os"
 )
+
+// 辅助补全菜单的渲染
+type cCompletionMenu struct {
+	screen        *Screen
+	completeState *cCompletionState
+	maxHeight     int
+}
+
+func newCompleteMenu(screen *Screen, completeState *cCompletionState, maxHeight int) *cCompletionMenu {
+	return &cCompletionMenu{
+		screen:        screen,
+		completeState: completeState,
+		maxHeight:     maxHeight,
+	}
+}
+
+// 返回菜单的位置坐标
+func (c *cCompletionMenu) getOrigin() Coordinate {
+	return c.screen.getCursorCoordinate(
+		c.completeState.originalDocument.CursorPositionRow(),
+		c.completeState.originalDocument.CursorPositionCol())
+}
+
+// 将菜单写入 screen 里面
+func (c *cCompletionMenu) write() {
+	completions := c.completeState.currentCompletions
+	index := c.completeState.completeIndex
+
+	// 获取菜单的位置坐标
+	coordinate := c.getOrigin()
+	x := coordinate.X
+	y := coordinate.Y
+	y++
+	// 这里 x - 1 是因为前面会加个空格
+	x = maxInt(0, x-1)
+
+	// 计算补全菜单的宽度
+	menuWidth := 0
+	for _, completion := range completions {
+		w := runewidth.StringWidth(completion.Display)
+		if w > menuWidth {
+			menuWidth = w
+		}
+	}
+
+	// 决定从哪个补全项开始展示
+	sliceFrom := 0
+	// 补全项多于最大高度并且当前选择项在下半部分位置，需要向上移动补全菜单
+	if len(completions) > c.maxHeight && index != -1 && index > c.maxHeight/2 {
+		sliceFrom = minInt(
+			index-c.maxHeight/2,          // 将选择项移到中间位置
+			len(completions)-c.maxHeight, // 最后一个补全在最底部
+		)
+	}
+
+	sliceTo := minInt(sliceFrom+c.maxHeight, len(completions))
+
+	// 写入补全到 screen
+	for i, completion := range completions[sliceFrom:sliceTo] {
+		var tokenType token.TokenType
+		var button token.Token
+		if i+sliceFrom == index {
+			tokenType = token.CompletionMenuCurrentCompletion
+			button = token.Token{
+				Type:    token.CompletionProgressButton,
+				Literal: " ",
+			}
+		} else {
+			tokenType = token.CompletionMenuCompletion
+			button = token.Token{
+				Type:    token.CompletionProgressBar,
+				Literal: " ",
+			}
+		}
+
+		c.screen.WriteTokensAtPos(x, y+i, []token.Token{
+			{
+				Type:    token.Unspecific,
+				Literal: " ",
+			},
+			{
+				Type:    tokenType,
+				Literal: fmt.Sprintf(" %s", ljustWidth(completion.Display, menuWidth)),
+			},
+			button,
+			{
+				Type:    token.Unspecific,
+				Literal: " ",
+			},
+		})
+
+	}
+}
 
 func newRender(schema Schema) *rRenderer {
 	return &rRenderer{
@@ -32,18 +126,25 @@ func (r *rRenderer) getWidth() int {
 func (r *rRenderer) getNewScreen(renderContext *RenderContext) *Screen {
 	screen := NewScreen(r.schema, r.getWidth())
 
-	// write prompt
+	// 写入提示符
 	prompts := renderContext.prompt.GetPrompt()
 	screen.WriteTokens(prompts, false)
 
-	// set second line prefix
+	// 设置后续行前缀函数
 	screen.setSecondLinePrefix(func() []token.Token {
 		return renderContext.prompt.GetSecondLinePrefix()
 	})
 
-	// write code object
+	// 写入分词后的用户输入
 	screen.WriteTokens(renderContext.code.GetTokens(), true)
 	screen.saveInputPos()
+
+	screen.setSecondLinePrefix(nil)
+
+	// 写入补全菜单
+	if renderContext.completeState != nil {
+		newCompleteMenu(screen, renderContext.completeState, 7).write()
+	}
 
 	return screen
 }
@@ -66,6 +167,7 @@ func (r *rRenderer) renderToStr(renderContext *RenderContext) string {
 
 	// 用户输入完毕或者放弃输入，另起一行
 	if renderContext.accept || renderContext.abort {
+		r.cursorRow = 0
 		buf.WriteString(terminalcode.CRLF)
 	} else {
 		// 移动光标到正确位置
@@ -105,6 +207,8 @@ func (r *rRenderer) renderCompletions(completions []*Completion) {
 		r.write(terminalcode.CRLF)
 	}
 	r.flush()
+
+	r.cursorRow = 0
 }
 
 // marginLeft 左边空格数量

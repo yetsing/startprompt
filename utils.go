@@ -2,6 +2,7 @@ package startprompt
 
 import (
 	"bytes"
+	"github.com/mattn/go-runewidth"
 	"golang.org/x/term"
 	"strings"
 	"unicode"
@@ -92,4 +93,13 @@ func stringStartAt(s string, start int) string {
 		c++
 	}
 	return ""
+}
+
+// 返回指定宽度左对齐的字符串，不够的右边补空格
+func ljustWidth(s string, width int) string {
+	diff := width - runewidth.StringWidth(s)
+	if diff <= 0 {
+		return s
+	}
+	return s + repeatByte(' ', diff)
 }

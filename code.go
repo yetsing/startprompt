@@ -22,9 +22,10 @@ type Code interface {
 	Complete() string
 	// GetCompletions 返回当前可选的补全列表，供用户选择，例如连按两次 tab 出现的补全列表
 	GetCompletions() []*Completion
-	// IsMultiline 用户按下 Enter 键时调用，
-	// 返回 true 表示需要多行输入
-	IsMultiline() bool
+	// ContinueInput 用户按下 Enter 键时调用，
+	// 返回 true 时，会另起一行供用户继续输入
+	// 返回 false 时，表示用户本次输入完成， CommandLine.ReadInput 则会返回用户输入
+	ContinueInput() bool
 }
 
 type _BaseCode struct {
@@ -38,7 +39,7 @@ func newBaseCode(document *Document) Code {
 func (c *_BaseCode) GetTokens() []token.Token {
 	return []token.Token{
 		{
-			token.UNSPECIFIC,
+			token.Unspecific,
 			c.document.Text(),
 		},
 	}
@@ -66,7 +67,7 @@ func (c *_BaseCode) GetCompletions() []*Completion {
 	}
 }
 
-func (c *_BaseCode) IsMultiline() bool {
+func (c *_BaseCode) ContinueInput() bool {
 	// for test
 	text := c.document.Text()
 	return !strings.HasSuffix(text, "\n")

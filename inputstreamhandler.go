@@ -2,6 +2,7 @@ package startprompt
 
 type InputStreamHandler interface {
 	Handle(action Event, a ...rune)
+	// 下面的方法跟事件一一对应
 }
 
 type BaseHandler struct {
@@ -60,6 +61,7 @@ func (b *BaseHandler) Handle(event Event, a ...rune) {
 		// ctrl_m 相等于 "\r" ，我们把他当成 \n 的效果
 		b.enter()
 	case ctrl_n:
+		line.CompleteNext(1)
 	case ctrl_o:
 	case ctrl_p:
 	case ctrl_q:

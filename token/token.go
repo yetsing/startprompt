@@ -1,11 +1,23 @@
 package token
 
+import (
+	"fmt"
+	"strings"
+)
+
 type TokenType string
 
+//goland:noinspection GoUnusedConst
 const (
-	UNSPECIFIC             TokenType = "unspecific"
+	Unspecific             TokenType = "unspecific"
 	Prompt                 TokenType = "prompt"
 	PromptSecondLinePrefix TokenType = "Prompt.SecondLinePrefix"
+
+	CompletionMenu                  TokenType = "CompletionMenu"
+	CompletionMenuCurrentCompletion TokenType = "CompletionMenu.CurrentCompletion"
+	CompletionMenuCompletion        TokenType = "CompletionMenu.Completion"
+	CompletionProgressButton        TokenType = "CompletionMenu.ProgressButton"
+	CompletionProgressBar           TokenType = "CompletionMenu.ProgressBar"
 
 	ILLEGAL TokenType = "ILLEGAL"
 	EOF     TokenType = "EOF"
@@ -46,6 +58,10 @@ const (
 
 	WHITESPACE TokenType = "whitespace"
 )
+
+func (t TokenType) HasChild(child TokenType) bool {
+	return len(child) > len(t) && strings.HasPrefix(string(child), fmt.Sprintf("%s.", t))
+}
 
 type Token struct {
 	Type    TokenType

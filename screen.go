@@ -118,6 +118,19 @@ func (s *Screen) Output() (string, Coordinate) {
 	return strings.Join(result, ""), cursorPos
 }
 
+// WriteTokensAtPos 在指定位置写入 token 数组
+func (s *Screen) WriteTokensAtPos(x int, y int, tokens []token.Token) {
+	for _, t := range tokens {
+		if t.TypeIs(token.EOF) {
+			break
+		}
+		style := s.schema[t.Type]
+		for _, r := range t.Literal {
+			s.writeAtPos(x, y, r, style)
+		}
+	}
+}
+
 // WriteTokens 写入 Token 数组， isInput: 写入的是否是用户输入的内容
 func (s *Screen) WriteTokens(tokens []token.Token, isInput bool) {
 	for _, t := range tokens {
