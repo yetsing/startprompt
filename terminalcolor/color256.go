@@ -1,7 +1,5 @@
 package terminalcolor
 
-import "strconv"
-
 /*
 8-bit 颜色，可以表示 256 种颜色
 参考：https://en.wikipedia.org/wiki/ANSI_escape_code 中 "8-bit" 一节
@@ -19,14 +17,16 @@ ESC[48;5;⟨n⟩m Select background color
 
 */
 
-// Color256 定义颜色表的序号
-type Color256 int
+import (
+	"fmt"
+	"strconv"
+)
 
-const Color256Default Color256 = -1
+const Color256Start Color = 256
 
 //goland:noinspection GoUnusedConst
 const (
-	Color256No0 Color256 = iota
+	Color256No0 Color = Color256Start + iota
 	Color256No1
 	Color256No2
 	Color256No3
@@ -284,56 +284,143 @@ const (
 	Color256No255
 )
 
-type Color256Style struct {
-	fg        Color256
-	bg        Color256
-	bold      bool
-	underline bool
-	italic    bool
+type rgb struct {
+	r int
+	g int
+	b int
 }
 
-//goland:noinspection GoUnusedExportedFunction
-func NewColor256Style(fg, bg Color256, bold, underline, italic bool) *Color256Style {
-	return &Color256Style{
-		fg:        fg,
-		bg:        bg,
-		bold:      bold,
-		underline: underline,
-		italic:    italic,
-	}
+var table = newColor256Table()
+
+func newColor256Table() *color256Table {
+	c := &color256Table{bestMatch: map[string]Color{}}
+	c.buildColorTable()
+	return c
 }
 
-func (c *Color256Style) ColorEscape() string {
-	var attrs []string
-	if c.fg != Color256Default {
-		attrs = append(attrs, "38", "5", strconv.Itoa(int(c.fg)))
-	}
-	if c.bg != Color256Default {
-		// 背景的数字 = 前景的数字 + 10
-		attrs = append(attrs, "48", "5", strconv.Itoa(int(c.bg)+10))
-	}
-	if c.bold {
-		attrs = append(attrs, "01")
-	}
-	if c.underline {
-		attrs = append(attrs, "04")
-	}
-	if c.italic {
-		attrs = append(attrs, "03")
-	}
-	return escapeAttrs(attrs)
+type color256Table struct {
+	colors []rgb
+	// 一个查询结果的缓存
+	bestMatch map[string]Color
 }
 
-func (c *Color256Style) ResetEscape() string {
-	var attrs []string
-	if c.fg != Color256Default {
-		attrs = append(attrs, "39")
+func (c *color256Table) buildColorTable() {
+	// 颜色表 rgb 值来源 https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit
+	// 说明见本文件开头
+	c.colors = make([]rgb, 256)
+	basicColors := []rgb{
+		{0, 0, 0},
+		{128, 0, 0},
+		{0, 128, 0},
+		{128, 128, 0},
+		{0, 0, 128},
+		{128, 0, 128},
+		{0, 128, 128},
+		{192, 192, 192},
+		{128, 128, 128},
+		{255, 0, 0},
+		{0, 255, 0},
+		{255, 255, 0},
+		{0, 0, 255},
+		{255, 0, 255},
+		{0, 255, 255},
+		{255, 255, 255},
 	}
-	if c.bg != Color256Default {
-		attrs = append(attrs, "49")
+	copy(c.colors, basicColors)
+
+	valuerange := []int{0x00, 0x5f, 0x87, 0xaf, 0xd7, 0xff}
+
+	// 6 * 6 * 6 的颜色表
+	for ri := 0; ri < 6; ri++ {
+		for gi := 0; gi < 6; gi++ {
+			for bi := 0; bi < 6; bi++ {
+				index := 16 + 36*ri + 6*gi + bi
+				c.colors[index].r = valuerange[ri]
+				c.colors[index].g = valuerange[gi]
+				c.colors[index].b = valuerange[bi]
+			}
+		}
 	}
-	if c.bold || c.underline || c.italic {
-		attrs = append(attrs, "00")
+
+	grayColors := []rgb{
+		{8, 8, 8},
+		{18, 18, 18},
+		{28, 28, 28},
+		{38, 38, 38},
+		{48, 48, 48},
+		{58, 58, 58},
+		{68, 68, 68},
+		{78, 78, 78},
+		{88, 88, 88},
+		{98, 98, 98},
+		{108, 108, 108},
+		{118, 118, 118},
+		{128, 128, 128},
+		{138, 138, 138},
+		{148, 148, 148},
+		{158, 158, 158},
+		{168, 168, 168},
+		{178, 178, 178},
+		{188, 188, 188},
+		{198, 198, 198},
+		{208, 208, 208},
+		{218, 218, 218},
+		{228, 228, 228},
+		{238, 238, 238},
 	}
-	return escapeAttrs(attrs)
+	copy(c.colors[232:], grayColors)
+}
+
+func (c *color256Table) closestColor(r int, g int, b int) Color {
+	// 初始值要保证比下面算出来的距离 d 都要大
+	distance := 257 * 257 * 3
+	match := 0
+
+	for i, color := range c.colors {
+		rd := r - color.r
+		gd := g - color.g
+		bd := b - color.b
+		d := rd*rd + gd*gd + bd*bd
+		if d < distance {
+			match = i
+			distance = d
+		}
+	}
+	return Color(match) + Color256Start
+}
+
+func (c *color256Table) colorIndex(r int, g int, b int) Color {
+	h := fmt.Sprintf("#%x%x%x", r, g, b)
+	if v, found := c.bestMatch[h]; found {
+		return v
+	}
+	index := c.closestColor(r, g, b)
+	c.bestMatch[h] = index
+	return index
+}
+
+// Color256IndexFromHexRGB 根据十六进制表示的 rgb 颜色返回最相近的 color256 表索引
+// 例如 #660066
+func Color256IndexFromHexRGB(color string) Color {
+	if len(color) == 0 {
+		return ColorDefault
+	}
+	if len(color) != 7 || color[0] != '#' {
+		panic(fmt.Sprintf("invalid hex color format: %q", color))
+	}
+	color = color[1:]
+	tmp, err := strconv.ParseInt(color, 16, 32)
+	if err != nil {
+		panic(err)
+	}
+	n := int(tmp)
+	r := (n >> 16) & 0xff
+	g := (n >> 8) & 0xff
+	b := n & 0xff
+	return Color256IndexFromRGB(r, g, b)
+}
+
+// Color256IndexFromRGB 根据 rgb 颜色返回最相近的 color256 表索引
+func Color256IndexFromRGB(r int, g int, b int) Color {
+	return table.colorIndex(r, g, b)
 }

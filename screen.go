@@ -127,6 +127,11 @@ func (s *Screen) WriteTokensAtPos(x int, y int, tokens []token.Token) {
 		style := s.schema[t.Type]
 		for _, r := range t.Literal {
 			s.writeAtPos(x, y, r, style)
+			n := runewidth.RuneWidth(r)
+			if n < 0 {
+				n = 0
+			}
+			x += n
 		}
 	}
 }
@@ -137,7 +142,7 @@ func (s *Screen) WriteTokens(tokens []token.Token, isInput bool) {
 		if t.TypeIs(token.EOF) {
 			break
 		}
-		style := s.schema[t.Type]
+		style := s.schema.StyleForToken(t.Type)
 		for _, r := range t.Literal {
 			s.WriteChar(r, style, isInput)
 		}

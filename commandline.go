@@ -2,15 +2,25 @@ package startprompt
 
 import (
 	"bufio"
-	"bytes"
+	"errors"
 	"fmt"
+	"github.com/yetsing/startprompt/terminalcode"
 	"golang.org/x/term"
 	"os"
-	"strconv"
-
-	"github.com/yetsing/startprompt/lexer"
-	"github.com/yetsing/startprompt/terminalcode"
 )
+
+type AbortAction string
+
+//goland:noinspection GoUnusedConst
+const (
+	AbortActionIgnore      AbortAction = "ignore"
+	AbortActionRetry       AbortAction = "retry"
+	AbortActionReturnError AbortAction = "return_error"
+	AbortActionReturnNone  AbortAction = "return_none"
+)
+
+var AbortError = errors.New("user abort")
+var ExitError = errors.New("user exit")
 
 func panicf(format string, a ...any) {
 	panic(fmt.Sprintf(format, a...))
@@ -22,16 +32,61 @@ func ensureOk(err error) {
 	}
 }
 
+//goland:noinspection GoUnusedFunction
 func ctrlKey(k rune) rune {
 	return k & 0x1f
 }
 
+type CommandLineOption struct {
+	Schema        Schema
+	History       History
+	NewCodeFunc   NewCodeFunc
+	NewPromptFunc NewPromptFunc
+
+	Debug bool
+}
+
+var defaultCommandLineOption = &CommandLineOption{
+	Schema:        defaultSchema,
+	History:       NewMemHistory(),
+	NewCodeFunc:   newBaseCode,
+	NewPromptFunc: newBasePrompt,
+}
+
+func (cp *CommandLineOption) copy() *CommandLineOption {
+	return &CommandLineOption{
+		Schema:        cp.Schema,
+		History:       cp.History,
+		NewCodeFunc:   cp.NewCodeFunc,
+		NewPromptFunc: cp.NewPromptFunc,
+	}
+}
+
+func (cp *CommandLineOption) update(other *CommandLineOption) {
+	if other.Schema != nil {
+		cp.Schema = other.Schema
+	}
+	if other.History != nil {
+		cp.History = other.History
+	}
+	if other.NewCodeFunc != nil {
+		cp.NewCodeFunc = other.NewCodeFunc
+	}
+	if other.NewPromptFunc != nil {
+		cp.NewPromptFunc = other.NewPromptFunc
+	}
+}
+
 type CommandLine struct {
-	reader         *bufio.Reader
-	writer         *bufio.Writer
-	running        bool
-	tokensFunc     lexer.GetTokensFunc
+	reader *bufio.Reader
+	writer *bufio.Writer
+
+	option *CommandLineOption
+
 	enableDebugLog bool
+
+	onAbort AbortAction
+	onExit  AbortAction
 }
 
 func (c *CommandLine) ReadInput() (string, error) {
@@ -50,8 +105,8 @@ func (c *CommandLine) ReadInput() (string, error) {
 		}
 	}()
 
-	render := newRender(defaultSchema)
-	line := newLine(render, newBaseCode, newBasePrompt, NewMemHistory())
+	render := newRender(c.option.Schema)
+	line := newLine(render, c.option.NewCodeFunc, c.option.NewPromptFunc, c.option.History)
 	handler := NewBaseHandler(line)
 	is := NewInputStream(handler)
 	render.render(line.GetRenderContext())
@@ -59,27 +114,42 @@ func (c *CommandLine) ReadInput() (string, error) {
 	var r rune
 	reader := c.reader
 	var inputText string
-	for true {
+	for {
 		r, _, err = reader.ReadRune()
 		if err != nil {
-			panicf("error read: %v\n", err)
+			return "", err
 		}
 		DebugLog("read rune: %d", r)
 		is.Feed(r)
-		DebugLog("feed: %d", r)
-		render.render(line.GetRenderContext())
-		DebugLog("terminal width: %d", render.getWidth())
 		//c.draw(line)
-		if line.abort || line.accept {
+		if line.exit {
+			switch c.onExit {
+			case AbortActionReturnError:
+				return "", ExitError
+			case AbortActionReturnNone:
+				return "", nil
+			case AbortActionRetry:
+				line.reset()
+			case AbortActionIgnore:
+
+			}
+		} else if line.abort {
+			switch c.onAbort {
+			case AbortActionReturnError:
+				return "", AbortError
+			case AbortActionReturnNone:
+				return "", nil
+			case AbortActionRetry:
+				line.reset()
+			case AbortActionIgnore:
+
+			}
+		} else if line.accept {
+			render.render(line.GetRenderContext())
 			inputText = line.text()
 			break
 		}
-		DebugLog("draw document")
-		if r == ctrlKey('q') {
-			DebugLog("exit normally")
-			c.running = false
-			break
-		}
+		render.render(line.GetRenderContext())
 	}
 	DebugLog("return input: <%s>", inputText)
 	return inputText, nil
@@ -153,46 +223,15 @@ type Position struct {
 	col int
 }
 
-func (c *CommandLine) getCursorPosition() Position {
-	c.Print("\x1b[6n")
-	var buf [32]byte
-	var i int
-	// 回复格式为 \x1b[A;BR
-	// A 和 B 就是光标的行和列
-	// todo 这里读取光标位置实际使用发现有一个问题
-	// 如果用户的输入没有及时处理（比如一直按着 A），下面的循环就会读到剩余的用户输入
-	// 而不是简单的 \x1b[A;BR 转义序列
-	for i = 0; i < 32; i++ {
-		c, err := c.reader.ReadByte()
-		ensureOk(err)
-		if c == 'R' {
-			break
-		} else {
-			buf[i] = c
-		}
-	}
-	if buf[0] != '\x1b' || buf[1] != '[' {
-		panicf("invalid cursor position report escape: %v", buf[:i])
-	}
-	sepIndex := bytes.IndexByte(buf[:], ';')
-	if sepIndex == -1 {
-		panicf("invalid cursor position report separator: %v", buf[:i])
-	}
-	row, err := strconv.ParseInt(string(buf[2:sepIndex]), 10, 32)
-	ensureOk(err)
-	col, err := strconv.ParseInt(string(buf[sepIndex+1:i]), 10, 32)
-	ensureOk(err)
-	return Position{
-		row: int(row),
-		col: int(col),
-	}
+func (c *CommandLine) OnAbort(action AbortAction) {
+	c.onAbort = action
 }
 
-func (c *CommandLine) Running() bool {
-	return c.running
+func (c *CommandLine) OnExit(action AbortAction) {
+	c.onExit = action
 }
 
-func NewCommandLine(tokensFunc lexer.GetTokensFunc, debug bool) (*CommandLine, error) {
+func NewCommandLine(option *CommandLineOption) (*CommandLine, error) {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return nil, fmt.Errorf("not in a terminal")
 	}
@@ -200,17 +239,26 @@ func NewCommandLine(tokensFunc lexer.GetTokensFunc, debug bool) (*CommandLine, e
 		return nil, fmt.Errorf("not in a terminal")
 	}
 
+	var finalOption *CommandLineOption
+	if option != nil {
+		finalOption = defaultCommandLineOption.copy()
+		finalOption.update(option)
+	} else {
+		finalOption = defaultCommandLineOption
+	}
 	reader := bufio.NewReader(os.Stdin)
 	writer := bufio.NewWriter(os.Stdout)
-	if debug {
+	if finalOption.Debug {
 		enableDebugLog()
 	} else {
 		disableDebugLog()
 	}
 	return &CommandLine{
-		reader:     reader,
-		writer:     writer,
-		running:    true,
-		tokensFunc: tokensFunc,
+		reader: reader,
+		writer: writer,
+		option: finalOption,
+
+		onAbort: AbortActionRetry,
+		onExit:  AbortActionReturnError,
 	}, nil
 }

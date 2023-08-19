@@ -96,6 +96,8 @@ type Line struct {
 	accept bool
 	// abort 表示用户丢弃当前输入（一般是按下 Ctrl-C）
 	abort bool
+	// exit 表示用户退出（一般是按下 Ctrl-D）
+	exit bool
 
 	workingLines []string
 	workingIndex int
@@ -116,11 +118,15 @@ func (l *Line) reset() {
 	l.mode = linemode.Normal
 	l.buffer = nil
 	l.cursorPosition = 0
+
 	l.undoStack = nil
+
 	l.completeState = nil
 
 	l.accept = false
 	l.abort = false
+	l.exit = false
+
 	lines := l.history.GetAll()
 	l.workingLines = make([]string, len(lines))
 	copy(l.workingLines, lines)
@@ -154,7 +160,6 @@ func (l *Line) setWorkingIndex(value int) {
 }
 
 func (l *Line) textChanged() {
-
 }
 
 // SaveToUndoStack 保存当前信息（文本和光标位置），支持 undo 操作
@@ -246,13 +251,12 @@ func (l *Line) CursorDown() {
 // 否则切换到上一个历史输入
 func (l *Line) AutoUp() {
 	toMode(l, linemode.Normal, linemode.Complete)
-	// todo
 	if l.mode.In(linemode.Complete) {
-
+		l.CompletePrevious(1)
 	} else if l.Document().CursorPositionRow() > 0 {
 		l.CursorUp()
 	} else {
-
+		l.HistoryBackward()
 	}
 }
 
@@ -261,13 +265,12 @@ func (l *Line) AutoUp() {
 // 如果光标不在第一行，移动光标到下一行
 // 否则切换到下一个历史输入
 func (l *Line) AutoDown() {
-	// todo
 	if l.mode.In(linemode.Complete) {
-
+		l.CompleteNext(1)
 	} else if l.Document().CursorPositionRow() > 0 {
 		l.CursorDown()
 	} else {
-
+		l.HistoryForward()
 	}
 }
 
@@ -496,7 +499,7 @@ func (l *Line) Complete() bool {
 func (l *Line) CompleteNext(count int) {
 	toMode(l, linemode.Normal, linemode.Complete)
 	if !l.mode.Is(linemode.Complete) {
-		l.startComplete()
+		l.StartComplete()
 	} else {
 		completionsCount := len(l.completeState.currentCompletions)
 
@@ -517,7 +520,7 @@ func (l *Line) CompletePrevious(count int) {
 	toMode(l, linemode.Normal, linemode.Complete)
 
 	if !l.mode.Is(linemode.Complete) {
-		l.startComplete()
+		l.StartComplete()
 	}
 
 	if l.completeState != nil {
@@ -533,8 +536,8 @@ func (l *Line) CompletePrevious(count int) {
 	}
 }
 
-// 开始补全
-func (l *Line) startComplete() {
+// StartComplete 开始补全
+func (l *Line) StartComplete() {
 	currentCompletions := l.CreateCodeObj().GetCompletions()
 
 	if len(currentCompletions) > 0 {
@@ -546,6 +549,12 @@ func (l *Line) startComplete() {
 		l.mode = linemode.Normal
 		l.completeState = nil
 	}
+}
+
+// ExitComplete 退出补全
+func (l *Line) ExitComplete() {
+	l.mode = linemode.Normal
+	l.completeState = nil
 }
 
 // 选择指定位置的补全
@@ -607,6 +616,7 @@ func (l *Line) HistoryBackward() {
 }
 
 func (l *Line) Newline() {
+	toMode(l, linemode.Normal)
 	l.InsertText([]rune{'\n'}, true)
 }
 
@@ -700,7 +710,7 @@ func (l *Line) Abort() {
 // Exit 停止输入（一般是用户按下 Ctrl-D）
 func (l *Line) Exit() {
 	toMode(l, linemode.Normal)
-	l.abort = true
+	l.exit = true
 }
 
 func (l *Line) ReturnInput() {

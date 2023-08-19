@@ -2,7 +2,6 @@ package startprompt
 
 import (
 	"github.com/yetsing/startprompt/token"
-	"strings"
 )
 
 type Completion struct {
@@ -50,25 +49,9 @@ func (c *_BaseCode) Complete() string {
 }
 
 func (c *_BaseCode) GetCompletions() []*Completion {
-	// for test
-	return []*Completion{
-		{
-			Display: "hello",
-			Suffix:  "hello",
-		},
-		{
-			Display: "world",
-			Suffix:  "world",
-		},
-		{
-			Display: "中文",
-			Suffix:  "中文",
-		},
-	}
+	return nil
 }
 
 func (c *_BaseCode) ContinueInput() bool {
-	// for test
-	text := c.document.Text()
-	return !strings.HasSuffix(text, "\n")
+	return false
 }

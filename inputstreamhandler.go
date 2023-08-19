@@ -1,5 +1,7 @@
 package startprompt
 
+import "github.com/yetsing/startprompt/enums/linemode"
+
 type InputStreamHandler interface {
 	Handle(action Event, a ...rune)
 	// 下面的方法跟事件一一对应
@@ -61,9 +63,10 @@ func (b *BaseHandler) Handle(event Event, a ...rune) {
 		// ctrl_m 相等于 "\r" ，我们把他当成 \n 的效果
 		b.enter()
 	case ctrl_n:
-		line.CompleteNext(1)
+		line.AutoDown()
 	case ctrl_o:
 	case ctrl_p:
+		line.AutoUp()
 	case ctrl_q:
 	case ctrl_r:
 	case ctrl_s:
@@ -100,6 +103,7 @@ func (b *BaseHandler) Handle(event Event, a ...rune) {
 	case escape_action:
 
 	case insert_char:
+		line.ExitComplete()
 		line.InsertText(a, true)
 	}
 }
@@ -111,14 +115,13 @@ func (b *BaseHandler) needsToSave(event Event) bool {
 }
 
 func (b *BaseHandler) tab() {
-	if b.secondTab {
-		// 两次 tab 会展示补全列表
-		// 效果类似于 bash 里面按 tab 两次
-		b.line.ListCompletions()
-		b.secondTab = false
-	} else {
-		// 有补全的话，就不需要触发两次 tab 的效果了
-		b.secondTab = !b.line.Complete()
+	if b.line.mode.Is(linemode.Complete) {
+		b.line.CompleteNext(1)
+		b.line.ExitComplete()
+		return
+	}
+	if !b.line.Complete() {
+		b.line.CompleteNext(1)
 	}
 }
 

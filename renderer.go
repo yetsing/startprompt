@@ -143,6 +143,7 @@ func (r *rRenderer) getNewScreen(renderContext *RenderContext) *Screen {
 
 	// 写入补全菜单
 	if renderContext.completeState != nil {
+		DebugLog("render completemenu")
 		newCompleteMenu(screen, renderContext.completeState, 7).write()
 	}
 

@@ -5,20 +5,23 @@ package main
 */
 
 import (
+	"errors"
 	"fmt"
 	"github.com/yetsing/startprompt"
-	"github.com/yetsing/startprompt/lexer"
 )
 
 func main() {
-	c, err := startprompt.NewCommandLine(lexer.GetMonkeyTokens, true)
+	c, err := startprompt.NewCommandLine(nil)
 	if err != nil {
 		fmt.Printf("failed to startprompt.NewCommandLine: %v\n", err)
 		return
 	}
-	for c.Running() {
+	for {
 		line, err := c.ReadInput()
 		if err != nil {
+			if errors.Is(err, startprompt.ExitError) {
+				break
+			}
 			fmt.Printf("ReadInput error: %v\n", err)
 			break
 		}
