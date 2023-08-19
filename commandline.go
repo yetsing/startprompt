@@ -22,10 +22,6 @@ const (
 var AbortError = errors.New("user abort")
 var ExitError = errors.New("user exit")
 
-func panicf(format string, a ...any) {
-	panic(fmt.Sprintf(format, a...))
-}
-
 func ensureOk(err error) {
 	if err != nil {
 		panic(err)
