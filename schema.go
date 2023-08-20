@@ -24,8 +24,8 @@ var defaultSchema = map[token.TokenType]terminalcolor.Style{
 	token.Keyword:  terminalcolor.NewFgColorStyleHex("#ee00ee"),
 	token.Operator: terminalcolor.NewFgColorStyleHex("#aa6666"),
 	token.Number:   terminalcolor.NewFgColorStyleHex("#2aacb8"),
-	token.Name:     terminalcolor.NewFgColorStyleHex("#008800"),
-	token.String:   terminalcolor.NewFgColorStyleHex("#6aab73"),
+	//token.Name:     terminalcolor.NewFgColorStyleHex("#008800"),
+	token.String: terminalcolor.NewFgColorStyleHex("#6aab73"),
 
 	token.Error:   terminalcolor.NewColorStyleHex("#000000", "#ff8888"),
 	token.Comment: terminalcolor.NewFgColorStyleHex("#0000dd"),

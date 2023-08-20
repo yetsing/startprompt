@@ -106,6 +106,14 @@ const (
 	GenericEmphStrong TokenType = Generic + ".emphstrong"
 	GenericTraceback  TokenType = Generic + ".traceback"
 
+	Python TokenType = "python"
+	Indent TokenType = Python + ".indent"
+	Dedent TokenType = Python + ".dedent"
+	// NewLine 表示一条完整语句后的换行符
+	NewLine TokenType = Python + ".newline"
+	// NL 表示除 NewLine 之外的换行
+	NL TokenType = Python + ".nl"
+
 	Prompt                 TokenType = "prompt"
 	PromptSecondLinePrefix TokenType = Prompt + ".secondlineprefix"
 
@@ -115,44 +123,7 @@ const (
 	CompletionProgressButton        TokenType = CompletionMenu + ".progressbutton"
 	CompletionProgressBar           TokenType = CompletionMenu + ".progressbar"
 
-	ILLEGAL TokenType = "ILLEGAL"
-	EOF     TokenType = "EOF"
-
-	// Identifiers + literals
-	IDENT  TokenType = "IDENT"  // add, foobar, x, y, ...
-	INT    TokenType = "INT"    // 1343456
-	STRING TokenType = "STRING" // "foobar"
-
-	// Operators
-	ASSIGN   TokenType = "="
-	PLUS     TokenType = "+"
-	MINUS    TokenType = "-"
-	BANG     TokenType = "!"
-	ASTERISK TokenType = "*"
-	SLASH    TokenType = "/"
-	DOT      TokenType = "."
-
-	LT TokenType = "<"
-	GT TokenType = ">"
-
-	EQ     TokenType = "=="
-	NOT_EQ TokenType = "!="
-
-	// Delimiters
-	COMMA     TokenType = ","
-	SEMICOLON TokenType = ";"
-	COLON     TokenType = ":"
-
-	LPAREN   TokenType = "("
-	RPAREN   TokenType = ")"
-	LBRACE   TokenType = "{"
-	RBRACE   TokenType = "}"
-	LBRACKET TokenType = "["
-	RBRACKET TokenType = "]"
-
-	KEYWORD TokenType = "keyword"
-
-	WHITESPACE TokenType = "whitespace"
+	EOF TokenType = "EOF"
 )
 
 func (t TokenType) HasChild(child TokenType) bool {
