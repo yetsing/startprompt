@@ -176,3 +176,10 @@ func (t *Token) TypeIn(ttypes ...TokenType) bool {
 	}
 	return false
 }
+
+func NewToken(tokenType TokenType, s string) Token {
+	return Token{
+		Type:    tokenType,
+		Literal: s,
+	}
+}

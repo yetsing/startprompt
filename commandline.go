@@ -71,6 +71,7 @@ func (cp *CommandLineOption) update(other *CommandLineOption) {
 	if other.NewPromptFunc != nil {
 		cp.NewPromptFunc = other.NewPromptFunc
 	}
+	cp.Debug = other.Debug
 }
 
 type CommandLine struct {
