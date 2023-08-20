@@ -128,17 +128,19 @@ func (l *Line) reset() {
 	l.exit = false
 
 	lines := l.history.GetAll()
-	l.workingLines = make([]string, len(lines))
+	// +1 是因为当前输入也要占个位置
+	l.workingLines = make([]string, len(lines)+1)
 	copy(l.workingLines, lines)
 	l.workingIndex = len(l.workingLines) - 1
 }
 
 func (l *Line) text() string {
-	return string(l.buffer)
+	return l.workingLines[l.workingIndex]
 }
 
 func (l *Line) setText(buffer []rune) {
 	l.buffer = buffer
+	l.workingLines[l.workingIndex] = string(buffer)
 	l.textChanged()
 }
 
@@ -251,7 +253,7 @@ func (l *Line) CursorDown() {
 // 否则切换到上一个历史输入
 func (l *Line) AutoUp() {
 	toMode(l, linemode.Normal, linemode.Complete)
-	if l.mode.In(linemode.Complete) {
+	if l.mode.Is(linemode.Complete) {
 		l.CompletePrevious(1)
 	} else if l.Document().CursorPositionRow() > 0 {
 		l.CursorUp()
@@ -733,7 +735,6 @@ func (l *Line) HasText() bool {
 
 func (l *Line) IsMultiline() bool {
 	res := l.CreateCodeObj().ContinueInput()
-	DebugLog("ContinueInput: %v", res)
 	return res
 }
 
