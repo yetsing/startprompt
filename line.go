@@ -301,7 +301,7 @@ func (l *Line) CursorToEndOfWord() {
 // CursorToEndOfLine 移动光标到当前行的行尾
 func (l *Line) CursorToEndOfLine() {
 	toMode(l, linemode.Normal)
-	count := utf8.RuneCountInString(l.Document().currentLineAfterCursor())
+	count := utf8.RuneCountInString(l.Document().CurrentLineAfterCursor())
 	l.SetCursorPosition(l.cursorPosition + count)
 }
 
@@ -310,10 +310,10 @@ func (l *Line) CursorToEndOfLine() {
 func (l *Line) CursorToStartOfLine(afterWhitespace bool) {
 	toMode(l, linemode.Normal)
 	document := l.Document()
-	l.SetCursorPosition(l.cursorPosition - utf8.RuneCountInString(document.currentLineBeforeCursor()))
+	l.SetCursorPosition(l.cursorPosition - utf8.RuneCountInString(document.CurrentLineBeforeCursor()))
 
 	if afterWhitespace {
-		ws := document.leadingWhitespaceInCurrentLine()
+		ws := document.LeadingWhitespaceInCurrentLine()
 		l.SetCursorPosition(l.cursorPosition + utf8.RuneCountInString(ws))
 	}
 }
@@ -359,7 +359,7 @@ func (l *Line) DeleteWordBeforeCursor() string {
 // DeleteUntilEndOfLine 删除从光标到行尾处的字符，返回删除的文本
 func (l *Line) DeleteUntilEndOfLine() string {
 	toMode(l, linemode.Normal)
-	after := l.Document().currentLineAfterCursor()
+	after := l.Document().CurrentLineAfterCursor()
 	l.DeleteCharacterAfterCursor(utf8.RuneCountInString(after))
 	return after
 }
@@ -367,7 +367,7 @@ func (l *Line) DeleteUntilEndOfLine() string {
 // DeleteFromStartOfLine 删除从行首到光标处的字符，返回删除的文本
 func (l *Line) DeleteFromStartOfLine() string {
 	toMode(l, linemode.Normal)
-	before := l.Document().currentLineBeforeCursor()
+	before := l.Document().CurrentLineBeforeCursor()
 	l.DeleteCharacterBeforeCursor(utf8.RuneCountInString(before))
 	return before
 }
@@ -377,7 +377,7 @@ func (l *Line) DeleteCurrentLine() string {
 	toMode(l, linemode.Normal)
 	document := l.Document()
 
-	deleted := document.currentLine()
+	deleted := document.CurrentLine()
 
 	// 删除对应行
 	lines := document.lines()
@@ -388,7 +388,7 @@ func (l *Line) DeleteCurrentLine() string {
 	l.setText([]rune(strings.Join(newLines, "\n")))
 
 	// 移动光标到新行文本的第一个字符位置
-	beforeCursor := document.currentLineBeforeCursor()
+	beforeCursor := document.CurrentLineBeforeCursor()
 	l.SetCursorPosition(l.cursorPosition - utf8.RuneCountInString(beforeCursor))
 	l.CursorToStartOfLine(true)
 	return deleted
@@ -430,9 +430,9 @@ func (l *Line) GotoMatchingBracket() {
 	document := l.Document()
 	stack := 1
 	for _, bracket := range brackets {
-		if document.currentChar() == bracket.left {
+		if document.CurrentChar() == bracket.left {
 			// 寻找匹配的右括号
-			text := document.textAfterCursor()
+			text := document.TextAfterCursor()
 			step := 0
 			for _, r := range stringStartAt(text, 1) {
 				if string(r) == bracket.left {
@@ -447,9 +447,9 @@ func (l *Line) GotoMatchingBracket() {
 				}
 				step++
 			}
-		} else if document.currentChar() == bracket.right {
+		} else if document.CurrentChar() == bracket.right {
 			// 寻找匹配的左括号
-			text := document.textBeforeCursor()
+			text := document.TextBeforeCursor()
 			text = reverseString(text)
 			step := 0
 			for _, r := range text {
@@ -594,7 +594,10 @@ func (l *Line) GetRenderContext() *RenderContext {
 		code,
 		completeState,
 		l.Document(),
-		l.accept, l.abort)
+		l.accept,
+		l.abort,
+		l.exit,
+	)
 }
 
 // HistoryForward 选择下一个历史输入
@@ -627,7 +630,7 @@ func (l *Line) Newline() {
 func (l *Line) InsertLineAbove(copyMargin bool) {
 	var insert string
 	if copyMargin {
-		insert = l.Document().leadingWhitespaceInCurrentLine() + "\n"
+		insert = l.Document().LeadingWhitespaceInCurrentLine() + "\n"
 	} else {
 		insert = "\n"
 	}
@@ -642,7 +645,7 @@ func (l *Line) InsertLineAbove(copyMargin bool) {
 func (l *Line) InsertLineBelow(copyMargin bool) {
 	var insert string
 	if copyMargin {
-		insert = "\n" + l.Document().leadingWhitespaceInCurrentLine()
+		insert = "\n" + l.Document().LeadingWhitespaceInCurrentLine()
 	} else {
 		insert = "\n"
 	}

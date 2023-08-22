@@ -49,25 +49,25 @@ func (d *Document) CursorPosition() int {
 	return d.cursorPosition
 }
 
-func (d *Document) currentChar() string {
+func (d *Document) CurrentChar() string {
 	return d.getCharRelativeToCursor(0)
 }
 
-func (d *Document) charBeforeCursor() string {
+func (d *Document) CharBeforeCursor() string {
 	return d.getCharRelativeToCursor(-1)
 }
 
-func (d *Document) textBeforeCursor() string {
+func (d *Document) TextBeforeCursor() string {
 	return string(d.runes[:d.cursorPosition])
 }
 
-func (d *Document) textAfterCursor() string {
+func (d *Document) TextAfterCursor() string {
 	return string(d.runes[d.cursorPosition:])
 }
 
-// 返回行首到光标处的文本
-func (d *Document) currentLineBeforeCursor() string {
-	text := d.textBeforeCursor()
+// CurrentLineBeforeCursor 返回行首到光标处的文本
+func (d *Document) CurrentLineBeforeCursor() string {
+	text := d.TextBeforeCursor()
 	// 返回最后一行
 	index := strings.LastIndexByte(text, '\n')
 	if index == -1 {
@@ -76,9 +76,9 @@ func (d *Document) currentLineBeforeCursor() string {
 	return text[index+1:]
 }
 
-// 返回光标到行尾的文本（不包括换行符）
-func (d *Document) currentLineAfterCursor() string {
-	text := d.textAfterCursor()
+// CurrentLineAfterCursor 返回光标到行尾的文本（不包括换行符）
+func (d *Document) CurrentLineAfterCursor() string {
+	text := d.TextAfterCursor()
 	// 返回第一行
 	index := strings.IndexByte(text, '\n')
 	if index == -1 {
@@ -92,18 +92,18 @@ func (d *Document) linesFromCurrent() []string {
 	return d.lines()[d.CursorPositionRow():]
 }
 
-func (d *Document) lineCount() int {
+func (d *Document) LineCount() int {
 	return len(d.lines())
 }
 
-// 返回光标所在行文本（不包括换行符）
-func (d *Document) currentLine() string {
-	return d.currentLineBeforeCursor() + d.currentLineAfterCursor()
+// CurrentLine 返回光标所在行文本（不包括换行符）
+func (d *Document) CurrentLine() string {
+	return d.CurrentLineBeforeCursor() + d.CurrentLineAfterCursor()
 }
 
-// 返回当前行开始处的空白字符
-func (d *Document) leadingWhitespaceInCurrentLine() string {
-	currentLine := d.currentLine()
+// LeadingWhitespaceInCurrentLine 返回当前行开始处的空白字符
+func (d *Document) LeadingWhitespaceInCurrentLine() string {
+	currentLine := d.CurrentLine()
 	var i int
 	var r rune
 	for i, r = range currentLine {
@@ -123,14 +123,14 @@ func (d *Document) getCharRelativeToCursor(offset int) string {
 	return string(d.runes[index])
 }
 
-// 光标是否在第一行
-func (d *Document) onFirstLine() bool {
+// OnFirstLine 光标是否在第一行
+func (d *Document) OnFirstLine() bool {
 	return d.CursorPositionRow() == 0
 }
 
-// 光标是否在最后一行
-func (d *Document) onLastLine() bool {
-	return d.CursorPositionRow() == d.lineCount()-1
+// OnLastLine 光标是否在最后一行
+func (d *Document) OnLastLine() bool {
+	return d.CursorPositionRow() == d.LineCount()-1
 }
 
 // CursorPositionRow 返回光标所在行号（从 0 开始计数）
@@ -165,7 +165,7 @@ func (d *Document) translateIndexToRowCol(index int) (int, int) {
 
 // 将行号和列号转成文本的索引
 func (d *Document) translateRowColToIndex(row int, col int) int {
-	lineCount := d.lineCount()
+	lineCount := d.LineCount()
 	if row < 0 {
 		row = 0
 	} else if row >= lineCount {
@@ -188,7 +188,7 @@ func (d *Document) translateRowColToIndex(row int, col int) int {
 
 // CursorUpPosition 返回光标往上移动一行后位置。如果光标位于第一行，返回 -1 。
 func (d *Document) CursorUpPosition() int {
-	text := d.textBeforeCursor()
+	text := d.TextBeforeCursor()
 	if strings.ContainsRune(text, '\n') {
 		lines := strings.Split(text, "\n")
 		length := len(lines)
@@ -213,9 +213,9 @@ func (d *Document) CursorUpPosition() int {
 
 // CursorDownPosition 返回光标往下移动一行后位置。如果光标位于最后一行，返回 -1 。
 func (d *Document) CursorDownPosition() int {
-	text := d.textAfterCursor()
+	text := d.TextAfterCursor()
 	if strings.ContainsRune(text, '\n') {
-		pos := utf8.RuneCountInString(d.currentLineBeforeCursor())
+		pos := utf8.RuneCountInString(d.CurrentLineBeforeCursor())
 		lines := strings.Split(text, "\n")
 		// 光标所在行
 		currentLine := lines[0]
@@ -243,18 +243,18 @@ func (d *Document) isCursorAtTheEnd() bool {
 
 // 光标是否在行尾
 func (d *Document) isCursorAtTheEndOfLine() bool {
-	return d.currentChar() == "\n" || d.currentChar() == ""
+	return d.CurrentChar() == "\n" || d.CurrentChar() == ""
 }
 
 // 当光标位于字符串 sub 开头时返回 true
 func (d *Document) hasMatchAtCurrentPosition(sub string) bool {
-	return strings.HasPrefix(d.textAfterCursor(), sub)
+	return strings.HasPrefix(d.TextAfterCursor(), sub)
 }
 
 // 找到光标前第一个单词开头的位置记为 S ，返回 S 与光标的相对位置
 // 找不到返回 0
 func (d *Document) findStartOfPreviousWord() int {
-	text := d.textBeforeCursor()
+	text := d.TextBeforeCursor()
 	if len(text) == 0 {
 		return 0
 	}
@@ -280,7 +280,7 @@ func (d *Document) findStartOfPreviousWord() int {
 // 找到光标后第一个单词开头的位置记为 S ，返回 S 与光标的相对位置
 // 找不到返回 0
 func (d *Document) findNextWordBeginning() int {
-	text := d.textAfterCursor()
+	text := d.TextAfterCursor()
 	if len(text) == 0 {
 		return 0
 	}
@@ -308,7 +308,7 @@ func (d *Document) findNextWordBeginning() int {
 // 对于 vim 来说，按 e 可以移动到单词末尾，实际上光标是在单词最后一个字符的左边
 // 这个时候如果再按 e 跳到下一个单词末尾，那么在判断的时候需要忽略这个字符
 func (d *Document) findNextWordEnding(includeCurrentPosition bool) int {
-	text := d.textAfterCursor()
+	text := d.TextAfterCursor()
 	if !includeCurrentPosition {
 		text = stringStartAt(text, 1)
 	}

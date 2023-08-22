@@ -4,10 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"os"
+
 	"github.com/mattn/go-runewidth"
 	"github.com/yetsing/startprompt/terminalcode"
 	"github.com/yetsing/startprompt/token"
-	"os"
 )
 
 // 辅助补全菜单的渲染
@@ -166,8 +167,8 @@ func (r *rRenderer) renderToStr(renderContext *RenderContext) string {
 	o, lastCoordinate := screen.Output()
 	buf.WriteString(o)
 
-	// 用户输入完毕或者放弃输入，另起一行
-	if renderContext.accept || renderContext.abort {
+	// 用户输入完毕或者放弃输入或者退出，另起一行
+	if renderContext.accept || renderContext.abort || renderContext.exit {
 		r.cursorRow = 0
 		buf.WriteString(terminalcode.CRLF)
 	} else {

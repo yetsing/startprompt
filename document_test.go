@@ -35,25 +35,25 @@ func testBoolEqual(t *testing.T, want bool, got bool) {
 
 func TestCurrentChar(t *testing.T) {
 	document := prepareDocument()
-	if document.currentChar() != "e" {
-		t.Fatalf("currentChar want \"e\", but got=%q", document.currentChar())
+	if document.CurrentChar() != "e" {
+		t.Fatalf("currentChar want \"e\", but got=%q", document.CurrentChar())
 	}
-	if document.charBeforeCursor() != "n" {
-		t.Fatalf("charBeforeCursor want \"n\", but got=%q", document.charBeforeCursor())
+	if document.CharBeforeCursor() != "n" {
+		t.Fatalf("CharBeforeCursor want \"n\", but got=%q", document.CharBeforeCursor())
 	}
 }
 
 func TestTextBeforeCursor(t *testing.T) {
 	document := prepareDocument()
-	if document.textBeforeCursor() != "line 1\nlin" {
-		t.Fatalf("got=%q", document.textBeforeCursor())
+	if document.TextBeforeCursor() != "line 1\nlin" {
+		t.Fatalf("got=%q", document.TextBeforeCursor())
 	}
 }
 
 func TestTextAfterCursor(t *testing.T) {
 	document := prepareDocument()
-	if document.textAfterCursor() != "e 2\n"+"line 3\n"+"line 4\n" {
-		t.Fatalf("got=%q", document.textAfterCursor())
+	if document.TextAfterCursor() != "e 2\n"+"line 3\n"+"line 4\n" {
+		t.Fatalf("got=%q", document.TextAfterCursor())
 	}
 }
 
@@ -71,7 +71,7 @@ func TestLines(t *testing.T) {
 func TestLineCount(t *testing.T) {
 	document := prepareDocument()
 	want := 5
-	got := document.lineCount()
+	got := document.LineCount()
 	if got != want {
 		t.Errorf("want=%d, but got=%d", want, got)
 	}
@@ -80,21 +80,21 @@ func TestLineCount(t *testing.T) {
 func TestCurrentLineBeforeCursor(t *testing.T) {
 	document := prepareDocument()
 	want := "lin"
-	got := document.currentLineBeforeCursor()
+	got := document.CurrentLineBeforeCursor()
 	testStringEqual(t, want, got)
 }
 
 func TestCurrentLineAfterCursor(t *testing.T) {
 	document := prepareDocument()
 	want := "e 2"
-	got := document.currentLineAfterCursor()
+	got := document.CurrentLineAfterCursor()
 	testStringEqual(t, want, got)
 }
 
 func TestCurrentLine(t *testing.T) {
 	document := prepareDocument()
 	want := "line 2"
-	got := document.currentLine()
+	got := document.CurrentLine()
 	testStringEqual(t, want, got)
 }
 

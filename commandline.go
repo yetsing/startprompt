@@ -13,6 +13,7 @@ type AbortAction string
 
 //goland:noinspection GoUnusedConst
 const (
+	AbortActionUnspecific  AbortAction = ""
 	AbortActionIgnore      AbortAction = "ignore"
 	AbortActionRetry       AbortAction = "retry"
 	AbortActionReturnError AbortAction = "return_error"
@@ -39,6 +40,9 @@ type CommandLineOption struct {
 	NewCodeFunc   NewCodeFunc
 	NewPromptFunc NewPromptFunc
 
+	OnExit  AbortAction
+	OnAbort AbortAction
+
 	Debug bool
 }
 
@@ -47,6 +51,9 @@ var defaultCommandLineOption = &CommandLineOption{
 	History:       NewMemHistory(),
 	NewCodeFunc:   newBaseCode,
 	NewPromptFunc: newBasePrompt,
+	Debug:         false,
+	OnAbort:       AbortActionRetry,
+	OnExit:        AbortActionReturnError,
 }
 
 func (cp *CommandLineOption) copy() *CommandLineOption {
@@ -55,6 +62,9 @@ func (cp *CommandLineOption) copy() *CommandLineOption {
 		History:       cp.History,
 		NewCodeFunc:   cp.NewCodeFunc,
 		NewPromptFunc: cp.NewPromptFunc,
+		Debug:         cp.Debug,
+		OnAbort:       cp.OnAbort,
+		OnExit:        cp.OnExit,
 	}
 }
 
@@ -72,6 +82,12 @@ func (cp *CommandLineOption) update(other *CommandLineOption) {
 		cp.NewPromptFunc = other.NewPromptFunc
 	}
 	cp.Debug = other.Debug
+	if other.OnExit != AbortActionUnspecific {
+		cp.OnExit = other.OnExit
+	}
+	if other.OnAbort != AbortActionUnspecific {
+		cp.OnAbort = other.OnAbort
+	}
 }
 
 type CommandLine struct {
@@ -255,7 +271,7 @@ func NewCommandLine(option *CommandLineOption) (*CommandLine, error) {
 		writer: writer,
 		option: finalOption,
 
-		onAbort: AbortActionRetry,
-		onExit:  AbortActionReturnError,
+		onAbort: finalOption.OnAbort,
+		onExit:  finalOption.OnExit,
 	}, nil
 }
