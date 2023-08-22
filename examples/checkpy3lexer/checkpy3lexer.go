@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/yetsing/startprompt"
 	"github.com/yetsing/startprompt/lexer"
 	"github.com/yetsing/startprompt/token"
 	"io"
@@ -137,7 +138,23 @@ func check(filepath string) {
 
 }
 
+func displayTokens(filepath string) {
+	for _, goToken := range getTokens(filepath, false) {
+		fmt.Printf(
+			"%s %q\n",
+			startprompt.StringLjustWidth(string(goToken.Type), 15),
+			goToken.Literal,
+		)
+	}
+
+}
+
 func main() {
+	if len(os.Args) == 2 {
+		filepath := os.Args[1]
+		displayTokens(filepath)
+		return
+	}
 	directory := "/tmp/checkpy3lexer2023"
 	entries, err := os.ReadDir(directory)
 	if err != nil {

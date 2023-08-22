@@ -393,9 +393,17 @@ func (l *Py3Lexer) lineTokens() {
 			buffer.Advance(1)
 		}
 		// 代码前面的缩进才有意义
+		var dents []token.Token
 		if buffer.HasChar() && buffer.CurrentChar() != '\r' && buffer.CurrentChar() != '\n' && buffer.CurrentChar() != '#' {
-			l.indentsOrDedents()
-		} else {
+			dents = l.indentsOrDedents()
+		}
+		// 如果空格没有被解析为缩进，重置解析的位置
+		// 比如下面这种情况， "print(3)" 行会有一个缩进 token ，"print(4)" 行因为与上一行空格一致，所以不会有缩进 token
+		// 需要解析为空格，不然输出后会发现少了一块
+		// if 1:
+		//   print(3)
+		//   print(4)
+		if len(dents) == 0 {
 			buffer.SetIndex(index)
 		}
 	}

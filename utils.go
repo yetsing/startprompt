@@ -103,3 +103,8 @@ func ljustWidth(s string, width int) string {
 	}
 	return s + repeatByte(' ', diff)
 }
+
+// StringLjustWidth 返回指定宽度左对齐的字符串，不够的右边补空格
+func StringLjustWidth(s string, width int) string {
+	return ljustWidth(s, width)
+}
