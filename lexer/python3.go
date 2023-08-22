@@ -393,7 +393,7 @@ func (l *Py3Lexer) lineTokens() {
 			buffer.Advance(1)
 		}
 		// 代码前面的缩进才有意义
-		if buffer.CurrentChar() != '\r' && buffer.CurrentChar() != '\n' && buffer.CurrentChar() != '#' {
+		if buffer.HasChar() && buffer.CurrentChar() != '\r' && buffer.CurrentChar() != '\n' && buffer.CurrentChar() != '#' {
 			l.indentsOrDedents()
 		} else {
 			buffer.SetIndex(index)
@@ -406,10 +406,6 @@ func (l *Py3Lexer) lineTokens() {
 		if l.enterMultiline {
 			currentLine := buffer.CurrentLine()
 			i := strings.Index(currentLine, l.multilineEnd)
-			//if strings.Contains(l.code, "这是对亚洲语言支持的测试。面对模棱两可的想法，拒绝猜测的诱惑。") {
-			//	fmt.Printf("currentLine: %q\n", currentLine)
-			//	fmt.Printf("i: %d\n", i)
-			//}
 			//     没有找到多行字符串的结束符号
 			if i == -1 {
 				// 跳过一整行

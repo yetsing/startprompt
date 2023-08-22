@@ -136,6 +136,10 @@ func (c *CommandLine) ReadInput() (string, error) {
 		is.Feed(r)
 		//c.draw(line)
 		if line.exit {
+			if c.onExit != AbortActionIgnore {
+				render.render(line.GetRenderContext())
+			}
+
 			switch c.onExit {
 			case AbortActionReturnError:
 				return "", ExitError
@@ -147,6 +151,10 @@ func (c *CommandLine) ReadInput() (string, error) {
 
 			}
 		} else if line.abort {
+			if c.onAbort != AbortActionIgnore {
+				render.render(line.GetRenderContext())
+			}
+
 			switch c.onAbort {
 			case AbortActionReturnError:
 				return "", AbortError
