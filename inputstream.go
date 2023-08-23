@@ -21,7 +21,7 @@ type InputStream struct {
 // Feed 根据输入触发对应的事件
 func (is *InputStream) Feed(r rune) {
 	var buffer []rune
-	for true {
+	for {
 		key := string(r)
 		if len(is.previous) > 0 {
 			key = is.previous + key
@@ -47,17 +47,17 @@ func (is *InputStream) Feed(r rune) {
 			first := runeAt(is.previous, 0)
 			// 按下 Esc 键就会收到 '\x1b' ，所以这里需要判断一下特殊处理
 			if first == '\x1b' {
-				is.callHandler(escape_action)
+				is.callHandler(EscapeAction)
 			} else {
 				// 如果不是快捷键操作，那么就是正常的输入
-				is.callHandler(insert_char, first)
+				is.callHandler(InsertChar, first)
 			}
 			// 剩余的字符放到缓冲中，留待下次循环的时候处理
 			buffer = []rune(is.previous[utf8.RuneLen(first):])
 			buffer = append(buffer, r)
 			is.previous = ""
 		} else {
-			is.callHandler(insert_char, r)
+			is.callHandler(InsertChar, r)
 		}
 		// 如果之前有缓存字符，继续进行处理
 		if len(buffer) > 0 {
@@ -114,48 +114,48 @@ func (a Event) String() string {
 }
 
 const (
-	ctrl_space Event = iota
-	ctrl_a
-	ctrl_b
-	ctrl_c
-	ctrl_d
-	ctrl_e
-	ctrl_f
-	ctrl_g
-	ctrl_h
-	ctrl_i
-	ctrl_j
-	ctrl_k
-	ctrl_l
-	ctrl_m
-	ctrl_n
-	ctrl_o
-	ctrl_p
-	ctrl_q
-	ctrl_r
-	ctrl_s
-	ctrl_t
-	ctrl_u
-	ctrl_v
-	ctrl_w
-	ctrl_x
-	ctrl_y
-	ctrl_z
-	ctrl_backslash
-	ctrl_square_close
-	ctrl_circumflex
-	ctrl_underscore
-	backspace
-	arrow_up
-	arrow_down
-	arrow_right
-	arrow_left
-	home
-	end
-	delete_action
-	page_up
-	page_down
-	backtab
+	CtrlSpace Event = iota
+	CtrlA
+	CtrlB
+	CtrlC
+	CtrlD
+	CtrlE
+	CtrlF
+	CtrlG
+	CtrlH
+	CtrlI
+	CtrlJ
+	CtrlK
+	CtrlL
+	CtrlM
+	CtrlN
+	CtrlO
+	CtrlP
+	CtrlQ
+	CtrlR
+	CtrlS
+	CtrlT
+	CtrlU
+	CtrlV
+	CtrlW
+	CtrlX
+	CtrlY
+	CtrlZ
+	CtrlBackslash
+	CtrlSquareClose
+	CtrlCircumflex
+	CtrlUnderscore
+	Backspace
+	ArrowUp
+	ArrowDown
+	ArrowRight
+	ArrowLeft
+	Home
+	End
+	DeleteAction
+	PageUp
+	PageDown
+	Backtab
 	F1
 	F2
 	F3
@@ -176,61 +176,74 @@ const (
 	F18
 	F19
 	F20
-	escape_action
-	insert_char
+	EscapeAction
+	InsertChar
 )
 
 var keyActions = map[string]Event{
-	"\x00": ctrl_space,
-	"\x01": ctrl_a,
-	"\x02": ctrl_b,
-	"\x03": ctrl_c,
-	"\x04": ctrl_d,
-	"\x05": ctrl_e,
-	"\x06": ctrl_f,
-	"\x07": ctrl_g,
-	// (Identical to '\b')
-	"\x08": ctrl_h,
-	// (Identical to '\t')
-	"\x09": ctrl_i,
-	// (Identical to '\n')
-	"\x0a": ctrl_j,
-	"\x0b": ctrl_k,
-	"\x0c": ctrl_l,
-	// (Identical to '\r')
-	"\x0d":     ctrl_m,
-	"\x0e":     ctrl_n,
-	"\x0f":     ctrl_o,
-	"\x10":     ctrl_p,
-	"\x11":     ctrl_q,
-	"\x12":     ctrl_r,
-	"\x13":     ctrl_s,
-	"\x14":     ctrl_t,
-	"\x15":     ctrl_u,
-	"\x16":     ctrl_v,
-	"\x17":     ctrl_w,
-	"\x18":     ctrl_x,
-	"\x19":     ctrl_y,
-	"\x1a":     ctrl_z,
-	"\x1c":     ctrl_backslash,
-	"\x1d":     ctrl_square_close,
-	"\x1e":     ctrl_circumflex,
-	"\x1f":     ctrl_underscore,
-	"\x7f":     backspace,
-	"\x1b[A":   arrow_up,
-	"\x1b[B":   arrow_down,
-	"\x1b[C":   arrow_right,
-	"\x1b[D":   arrow_left,
-	"\x1b[H":   home,
-	"\x1b[F":   end,
-	"\x1b[3~":  delete_action,
-	"\x1b[1~":  home,
-	"\x1b[4~":  end,
-	"\x1b[5~":  page_up,
-	"\x1b[6~":  page_down,
-	"\x1b[7~":  home,
-	"\x1b[8~":  end,
-	"\x1b[Z":   backtab,
+	// Control-Space (Also for Ctrl-@)
+	"\x00": CtrlSpace,
+	"\x01": CtrlA,
+	"\x02": CtrlB,
+	"\x03": CtrlC,
+	"\x04": CtrlD,
+	"\x05": CtrlE,
+	"\x06": CtrlF,
+	"\x07": CtrlG,
+	// Control-H (8) (Identical to '\b')
+	"\x08": CtrlH,
+	// Control-I (9) (Identical to '\t')
+	"\x09": CtrlI,
+	// Control-J (10) (Identical to '\n')
+	"\x0a": CtrlJ,
+	"\x0b": CtrlK,
+	// Control-L (clear; form feed)
+	"\x0c": CtrlL,
+	// Control-M (13) (Identical to '\r')
+	"\x0d": CtrlM,
+	"\x0e": CtrlN,
+	"\x0f": CtrlO,
+	"\x10": CtrlP,
+	"\x11": CtrlQ,
+	"\x12": CtrlR,
+	"\x13": CtrlS,
+	"\x14": CtrlT,
+	"\x15": CtrlU,
+	"\x16": CtrlV,
+	"\x17": CtrlW,
+	"\x18": CtrlX,
+	"\x19": CtrlY,
+	"\x1a": CtrlZ,
+	// Both Control-\ and Ctrl-|
+	"\x1c": CtrlBackslash,
+	// Control-]
+	"\x1d": CtrlSquareClose,
+	// Control-^
+	"\x1e": CtrlCircumflex,
+	// Control-underscore (Also for Ctrl-hypen.)
+	"\x1f": CtrlUnderscore,
+	// (127) Backspace
+	"\x7f":    Backspace,
+	"\x1b[A":  ArrowUp,
+	"\x1b[B":  ArrowDown,
+	"\x1b[C":  ArrowRight,
+	"\x1b[D":  ArrowLeft,
+	"\x1b[H":  Home,
+	"\x1b[F":  End,
+	"\x1b[3~": DeleteAction,
+	// tmux
+	"\x1b[1~": Home,
+	// tmux
+	"\x1b[4~": End,
+	"\x1b[5~": PageUp,
+	"\x1b[6~": PageDown,
+	// xrvt
+	"\x1b[7~": Home,
+	// xrvt
+	"\x1b[8~": End,
+	// shift + tab
+	"\x1b[Z": Backtab,
+
 	"\x1bOP":   F1,
 	"\x1bOQ":   F2,
 	"\x1bOR":   F3,

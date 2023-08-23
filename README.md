@@ -40,6 +40,9 @@ func main() {
 
 - [startprompt-python-repl](https://github.com/yetsing/startprompt-python-repl) 一个 Python repl
 
+### keybinding
+
+默认快捷键操作可看 [keybinding](./docs/keybinding.md)
 
 
 # 参考

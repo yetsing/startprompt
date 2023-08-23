@@ -4,9 +4,10 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"os"
+
 	"github.com/yetsing/startprompt/terminalcode"
 	"golang.org/x/term"
-	"os"
 )
 
 type AbortAction string

@@ -3,11 +3,11 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/yetsing/startprompt/terminalcolor"
 	"strings"
 
 	"github.com/mattn/go-runewidth"
 	"github.com/yetsing/startprompt"
+	"github.com/yetsing/startprompt/terminalcolor"
 	"github.com/yetsing/startprompt/token"
 )
 
@@ -110,6 +110,6 @@ func main() {
 			continue
 		}
 		inputCount++
-		fmt.Println("echo:", line)
+		fmt.Println(line)
 	}
 }
