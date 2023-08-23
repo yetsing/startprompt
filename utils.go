@@ -108,3 +108,12 @@ func ljustWidth(s string, width int) string {
 func StringLjustWidth(s string, width int) string {
 	return ljustWidth(s, width)
 }
+
+// RepeatString 将 n 个字符串 s 拼接在一起
+func RepeatString(s string, n int) string {
+	var sb strings.Builder
+	for i := 0; i < n; i++ {
+		sb.WriteString(s)
+	}
+	return sb.String()
+}

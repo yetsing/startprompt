@@ -43,6 +43,9 @@ type CommandLineOption struct {
 	OnExit  AbortAction
 	OnAbort AbortAction
 
+	// 自动缩进，如果开启，新行的缩进会与上一行保持一致
+	AutoIndent bool
+	// 输入 debug 日志
 	Debug bool
 }
 
@@ -51,9 +54,10 @@ var defaultCommandLineOption = &CommandLineOption{
 	History:       NewMemHistory(),
 	NewCodeFunc:   newBaseCode,
 	NewPromptFunc: newBasePrompt,
-	Debug:         false,
 	OnAbort:       AbortActionRetry,
 	OnExit:        AbortActionReturnError,
+	AutoIndent:    false,
+	Debug:         false,
 }
 
 func (cp *CommandLineOption) copy() *CommandLineOption {
@@ -62,9 +66,10 @@ func (cp *CommandLineOption) copy() *CommandLineOption {
 		History:       cp.History,
 		NewCodeFunc:   cp.NewCodeFunc,
 		NewPromptFunc: cp.NewPromptFunc,
-		Debug:         cp.Debug,
 		OnAbort:       cp.OnAbort,
 		OnExit:        cp.OnExit,
+		AutoIndent:    cp.AutoIndent,
+		Debug:         cp.Debug,
 	}
 }
 
@@ -81,13 +86,14 @@ func (cp *CommandLineOption) update(other *CommandLineOption) {
 	if other.NewPromptFunc != nil {
 		cp.NewPromptFunc = other.NewPromptFunc
 	}
-	cp.Debug = other.Debug
 	if other.OnExit != AbortActionUnspecific {
 		cp.OnExit = other.OnExit
 	}
 	if other.OnAbort != AbortActionUnspecific {
 		cp.OnAbort = other.OnAbort
 	}
+	cp.AutoIndent = other.AutoIndent
+	cp.Debug = other.Debug
 }
 
 type CommandLine struct {
@@ -119,7 +125,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 	}()
 
 	render := newRender(c.option.Schema)
-	line := newLine(render, c.option.NewCodeFunc, c.option.NewPromptFunc, c.option.History)
+	line := newLine(render, c.option.NewCodeFunc, c.option.NewPromptFunc, c.option.History, c.option.AutoIndent)
 	handler := NewBaseHandler(line)
 	is := NewInputStream(handler)
 	render.render(line.GetRenderContext())

@@ -101,14 +101,24 @@ type Line struct {
 
 	workingLines []string
 	workingIndex int
+
+	// 自动缩进，如果开启，新行的缩进会与上一行保持一致
+	autoIndent bool
 }
 
-func newLine(render *rRenderer, newCodeFunc NewCodeFunc, newPromptFunc NewPromptFunc, history History) *Line {
+func newLine(
+	render *rRenderer,
+	newCodeFunc NewCodeFunc,
+	newPromptFunc NewPromptFunc,
+	history History,
+	autoIndent bool,
+) *Line {
 	line := &Line{
 		renderer:      render,
 		newCodeFunc:   newCodeFunc,
 		newPromptFunc: newPromptFunc,
 		history:       history,
+		autoIndent:    autoIndent,
 	}
 	line.reset()
 	return line
@@ -622,7 +632,11 @@ func (l *Line) HistoryBackward() {
 
 func (l *Line) Newline() {
 	toMode(l, linemode.Normal)
+	spaces := l.Document().LeadingWhitespaceInCurrentLine()
 	l.InsertText([]rune{'\n'}, true)
+	if l.autoIndent {
+		l.InsertText([]rune(spaces), true)
+	}
 }
 
 // InsertLineAbove 在当前行的上方插入一个空行，

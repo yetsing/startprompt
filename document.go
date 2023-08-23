@@ -108,10 +108,10 @@ func (d *Document) LeadingWhitespaceInCurrentLine() string {
 	var r rune
 	for i, r = range currentLine {
 		if !unicode.IsSpace(r) {
-			break
+			return currentLine[:i]
 		}
 	}
-	return currentLine[:i]
+	return currentLine
 }
 
 // 获取相对光标位置的字符

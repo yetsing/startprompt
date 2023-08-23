@@ -36,6 +36,12 @@ func main() {
 
  `examples` 文件夹有一些简单的例子
 
+#### more examples
+
+- [startprompt-python-repl](https://github.com/yetsing/startprompt-python-repl) 一个 Python repl
+
+
+
 # 参考
 
 [python-prompt-toolkit](https://github.com/prompt-toolkit/python-prompt-toolkit)

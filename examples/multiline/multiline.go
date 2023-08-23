@@ -1,7 +1,7 @@
 package main
 
 /*
-   展示多行输入
+   多行输入
 */
 
 import (
@@ -38,11 +38,15 @@ func (c *MultilineCode) GetCompletions() []*startprompt.Completion {
 
 func (c *MultilineCode) ContinueInput() bool {
 	// 用于需要连续按下两次 Enter 才结束当前输入
-	return !strings.HasSuffix(c.document.Text(), "\n")
+	text := strings.TrimRight(c.document.Text(), " ")
+	return len(text) > 0 && !strings.HasSuffix(text, "\n")
 }
 
 func main() {
-	c, err := startprompt.NewCommandLine(&startprompt.CommandLineOption{NewCodeFunc: newMultilineCode})
+	c, err := startprompt.NewCommandLine(&startprompt.CommandLineOption{
+		NewCodeFunc: newMultilineCode,
+		AutoIndent:  true,
+	})
 	if err != nil {
 		fmt.Printf("failed to startprompt.NewCommandLine: %v\n", err)
 		return
