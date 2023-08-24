@@ -366,10 +366,10 @@ func (b *BaseHandler) tab() {
 	}
 	if !b.line.Complete() {
 		b.line.CompleteNext(1)
-	}
-	// 如果没有补全，插入 4 个空格
-	if b.line.mode.Is(linemode.Normal) {
-		b.line.InsertText([]rune("    "), true)
+		// 如果没有补全，插入 4 个空格
+		if b.line.mode.Is(linemode.Normal) {
+			b.line.InsertText([]rune("    "), true)
+		}
 	}
 }
 

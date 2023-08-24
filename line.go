@@ -500,7 +500,6 @@ func (l *Line) Complete() bool {
 	if len(result) > 0 {
 		runes := []rune(result)
 		l.InsertText(runes, true)
-		l.cursorPosition += len(runes)
 		return true
 	} else {
 		return false
