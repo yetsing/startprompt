@@ -530,10 +530,11 @@ func (l *Line) CompleteNext(count int) {
 		var index int
 		if l.completeState.completeIndex == -1 {
 			index = 0
-		} else if l.completeState.completeIndex == completionsCount-1 {
-			index = -1
 		} else {
-			index = minInt(completionsCount-1, l.completeState.completeIndex+count)
+			index = l.completeState.completeIndex + count
+			if index >= completionsCount {
+				index -= completionsCount
+			}
 		}
 		l.gotoCompletion(index)
 	}
@@ -549,12 +550,13 @@ func (l *Line) CompletePrevious(count int) {
 
 	if l.completeState != nil {
 		var index int
-		if l.completeState.completeIndex == 0 {
-			index = -1
-		} else if l.completeState.completeIndex == -1 {
+		if l.completeState.completeIndex == -1 {
 			index = len(l.completeState.currentCompletions) - 1
 		} else {
-			index = maxInt(0, l.completeState.completeIndex-count)
+			index = l.completeState.completeIndex - count
+			if index < 0 {
+				index += len(l.completeState.currentCompletions)
+			}
 		}
 		l.gotoCompletion(index)
 	}

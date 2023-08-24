@@ -6,6 +6,8 @@ package main
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/yetsing/startprompt"
 	"github.com/yetsing/startprompt/token"
 )
@@ -28,6 +30,16 @@ func (c *CompleteCode) GetTokens() []token.Token {
 }
 
 func (c *CompleteCode) Complete() string {
+	completions := c.GetCompletions()
+	r := c.document.CharBeforeCursor()
+	if len(r) == 0 {
+		return ""
+	}
+	for _, completion := range completions {
+		if strings.HasPrefix(completion.Display, r) {
+			return completion.Suffix[len(r):]
+		}
+	}
 	return ""
 }
 
@@ -54,7 +66,9 @@ func (c *CompleteCode) ContinueInput() bool {
 }
 
 func main() {
-	c, err := startprompt.NewCommandLine(&startprompt.CommandLineOption{NewCodeFunc: newCompleteCode})
+	c, err := startprompt.NewCommandLine(&startprompt.CommandLineOption{
+		NewCodeFunc: newCompleteCode,
+	})
 	if err != nil {
 		fmt.Printf("failed to startprompt.NewCommandLine: %v\n", err)
 		return

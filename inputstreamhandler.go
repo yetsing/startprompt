@@ -360,7 +360,7 @@ func (b *BaseHandler) needsToSave(event Event) bool {
 
 func (b *BaseHandler) tab() {
 	if b.line.mode.Is(linemode.Complete) {
-		b.line.CompleteNext(1)
+		b.line.CompleteNext(0)
 		b.line.ExitComplete()
 		return
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/yetsing/startprompt/terminalcode"
 	"golang.org/x/term"
@@ -35,6 +36,14 @@ func ctrlKey(k rune) rune {
 	return k & 0x1f
 }
 
+type PollEvent string
+
+const (
+	PollEventInput   PollEvent = "input"
+	PollEventRedraw  PollEvent = "redraw"
+	PollEventTimeout PollEvent = "timeout"
+)
+
 type CommandLineOption struct {
 	Schema        Schema
 	History       History
@@ -46,8 +55,9 @@ type CommandLineOption struct {
 
 	// 自动缩进，如果开启，新行的缩进会与上一行保持一致
 	AutoIndent bool
-	// 输入 debug 日志
-	Debug bool
+	// 开启 debug 日志
+	EnableDebug       bool
+	EnableConcurrency bool
 }
 
 var defaultCommandLineOption = &CommandLineOption{
@@ -58,7 +68,7 @@ var defaultCommandLineOption = &CommandLineOption{
 	OnAbort:       AbortActionRetry,
 	OnExit:        AbortActionReturnError,
 	AutoIndent:    false,
-	Debug:         false,
+	EnableDebug:   false,
 }
 
 func (cp *CommandLineOption) copy() *CommandLineOption {
@@ -70,7 +80,7 @@ func (cp *CommandLineOption) copy() *CommandLineOption {
 		OnAbort:       cp.OnAbort,
 		OnExit:        cp.OnExit,
 		AutoIndent:    cp.AutoIndent,
-		Debug:         cp.Debug,
+		EnableDebug:   cp.EnableDebug,
 	}
 }
 
@@ -94,7 +104,8 @@ func (cp *CommandLineOption) update(other *CommandLineOption) {
 		cp.OnAbort = other.OnAbort
 	}
 	cp.AutoIndent = other.AutoIndent
-	cp.Debug = other.Debug
+	cp.EnableDebug = other.EnableDebug
+	cp.EnableConcurrency = other.EnableConcurrency
 }
 
 type CommandLine struct {
@@ -103,10 +114,58 @@ type CommandLine struct {
 
 	option *CommandLineOption
 
-	enableDebugLog bool
+	inputTimeout time.Duration
 
-	onAbort AbortAction
-	onExit  AbortAction
+	readError error
+
+	redrawChannel chan rune
+	readChannel   chan rune
+}
+
+// RequestRedraw 请求重绘（线程安全）
+func (c *CommandLine) RequestRedraw() {
+	if !c.option.EnableConcurrency {
+		panic("not enable concurrency")
+	}
+	c.redrawChannel <- 'x'
+}
+
+// RunInExecutor 运行后台任务
+func (c *CommandLine) RunInExecutor(callback func()) {
+	if !c.option.EnableConcurrency {
+		panic("not enable concurrency")
+	}
+
+	go callback()
+}
+
+// OnInputTimeout 在等待输入超时后调用
+func (c *CommandLine) OnInputTimeout(_ Code) {
+
+}
+
+func (c *CommandLine) OnReadInputStart() {
+
+}
+
+func (c *CommandLine) OnReadInputEnd() {
+
+}
+
+func (c *CommandLine) pollEvent() (rune, PollEvent) {
+	select {
+	case r := <-c.readChannel:
+		return r, PollEventInput
+	case <-c.redrawChannel:
+		// 将缓冲的信息都读取出来，以免循环中不断触发
+		loop := len(c.redrawChannel)
+		for i := 0; i < loop; i++ {
+			<-c.redrawChannel
+		}
+		return 0, PollEventRedraw
+	case <-time.After(c.inputTimeout):
+		return 0, PollEventTimeout
+	}
 }
 
 func (c *CommandLine) ReadInput() (string, error) {
@@ -135,19 +194,38 @@ func (c *CommandLine) ReadInput() (string, error) {
 	reader := c.reader
 	var inputText string
 	for {
-		r, _, err = reader.ReadRune()
-		if err != nil {
-			return "", err
+		// 用户有多个任务运行，不能一直阻塞在用户输入上
+		if c.option.EnableConcurrency {
+			var pollEvent PollEvent
+			r, pollEvent = c.pollEvent()
+			switch pollEvent {
+			case PollEventRedraw:
+				render.render(line.GetRenderContext())
+				continue
+			case PollEventTimeout:
+				c.OnInputTimeout(line.CreateCodeObj())
+				continue
+			}
+			if c.readError != nil {
+				return "", err
+			}
+		} else {
+			r, _, err = reader.ReadRune()
+			if err != nil {
+				return "", err
+			}
 		}
 		DebugLog("read rune: %d", r)
+		// 识别用户输入，触发事件
 		is.Feed(r)
 		//c.draw(line)
 		if line.exit {
-			if c.onExit != AbortActionIgnore {
+			// 一般是用户按了 Ctrl-D
+			if c.option.OnExit != AbortActionIgnore {
 				render.render(line.GetRenderContext())
 			}
 
-			switch c.onExit {
+			switch c.option.OnExit {
 			case AbortActionReturnError:
 				return "", ExitError
 			case AbortActionReturnNone:
@@ -158,11 +236,12 @@ func (c *CommandLine) ReadInput() (string, error) {
 
 			}
 		} else if line.abort {
-			if c.onAbort != AbortActionIgnore {
+			// 一般是用户按了 Ctrl-C
+			if c.option.OnAbort != AbortActionIgnore {
 				render.render(line.GetRenderContext())
 			}
 
-			switch c.onAbort {
+			switch c.option.OnAbort {
 			case AbortActionReturnError:
 				return "", AbortError
 			case AbortActionReturnNone:
@@ -173,16 +252,20 @@ func (c *CommandLine) ReadInput() (string, error) {
 
 			}
 		} else if line.accept {
+			// 一般是用户按了 Enter
 			render.render(line.GetRenderContext())
 			inputText = line.text()
 			break
 		}
 		switch line.renderType {
 		case LineRenderClear:
+			// 一般是用户按了 Ctrl-L
 			render.clear()
 		case LineRenderListCompletion:
+			// 一般是用户按了两次 tab （实际上没有支持这个效果）
 			render.renderCompletions(line.GetRenderCompletions())
 		}
+		// 重新画出用户输入
 		render.render(line.GetRenderContext())
 		line.ResetRenderType()
 	}
@@ -258,12 +341,33 @@ type Position struct {
 	col int
 }
 
-func (c *CommandLine) OnAbort(action AbortAction) {
-	c.onAbort = action
+func (c *CommandLine) SetOnAbort(action AbortAction) {
+	c.option.OnAbort = action
 }
 
-func (c *CommandLine) OnExit(action AbortAction) {
-	c.onExit = action
+func (c *CommandLine) SetOnExit(action AbortAction) {
+	c.option.OnExit = action
+}
+
+func (c *CommandLine) setup() {
+	if c.option.EnableDebug {
+		enableDebugLog()
+	} else {
+		disableDebugLog()
+	}
+	if c.option.EnableConcurrency {
+		// 新开协程读取用户输入
+		go func() {
+			for {
+				r, _, err := c.reader.ReadRune()
+				if err != nil {
+					c.readError = err
+					break
+				}
+				c.readChannel <- r
+			}
+		}()
+	}
 }
 
 func NewCommandLine(option *CommandLineOption) (*CommandLine, error) {
@@ -274,26 +378,21 @@ func NewCommandLine(option *CommandLineOption) (*CommandLine, error) {
 		return nil, fmt.Errorf("not in a terminal")
 	}
 
-	var finalOption *CommandLineOption
+	actualOption := defaultCommandLineOption.copy()
 	if option != nil {
-		finalOption = defaultCommandLineOption.copy()
-		finalOption.update(option)
-	} else {
-		finalOption = defaultCommandLineOption
+		actualOption.update(option)
 	}
+
 	reader := bufio.NewReader(os.Stdin)
 	writer := bufio.NewWriter(os.Stdout)
-	if finalOption.Debug {
-		enableDebugLog()
-	} else {
-		disableDebugLog()
-	}
-	return &CommandLine{
+	c := &CommandLine{
 		reader: reader,
 		writer: writer,
-		option: finalOption,
+		option: actualOption,
 
-		onAbort: finalOption.OnAbort,
-		onExit:  finalOption.OnExit,
-	}, nil
+		redrawChannel: make(chan rune, 1024),
+		readChannel:   make(chan rune),
+	}
+	c.setup()
+	return c, nil
 }

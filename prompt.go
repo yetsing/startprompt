@@ -1,10 +1,11 @@
 package startprompt
 
 import (
-	"github.com/mattn/go-runewidth"
-	"github.com/yetsing/startprompt/token"
 	"strings"
 	"unicode"
+
+	"github.com/mattn/go-runewidth"
+	"github.com/yetsing/startprompt/token"
 )
 
 type NewPromptFunc func(line *Line, code Code) Prompt
@@ -16,15 +17,15 @@ type Prompt interface {
 	GetSecondLinePrefix() []token.Token
 }
 
-type basePrompt struct {
+type BasePrompt struct {
 }
 
 //goland:noinspection GoUnusedParameter
 func newBasePrompt(line *Line, code Code) Prompt {
-	return &basePrompt{}
+	return &BasePrompt{}
 }
 
-func (b *basePrompt) GetPrompt() []token.Token {
+func (b *BasePrompt) GetPrompt() []token.Token {
 	tk := token.Token{
 		Type:    token.Prompt,
 		Literal: "> ",
@@ -32,7 +33,7 @@ func (b *basePrompt) GetPrompt() []token.Token {
 	return []token.Token{tk}
 }
 
-func (b *basePrompt) GetSecondLinePrefix() []token.Token {
+func (b *BasePrompt) GetSecondLinePrefix() []token.Token {
 	// 拿到默认提示符宽度
 	var sb strings.Builder
 	for _, t := range b.GetPrompt() {
