@@ -71,6 +71,14 @@ func (c *cCompletionState) currentCompletionText() string {
 	}
 }
 
+type LineRenderType string
+
+const (
+	LineRenderDefault        LineRenderType = "default"
+	LineRenderClear          LineRenderType = "clear"
+	LineRenderListCompletion LineRenderType = "listCompletions"
+)
+
 type _UndoEntry struct {
 	text           string
 	cursorPosition int
@@ -86,7 +94,6 @@ type Line struct {
 	mode           linemode.LineMode
 	completeState  *cCompletionState
 
-	renderer      *rRenderer
 	newCodeFunc   NewCodeFunc
 	newPromptFunc NewPromptFunc
 
@@ -104,21 +111,24 @@ type Line struct {
 
 	// 自动缩进，如果开启，新行的缩进会与上一行保持一致
 	autoIndent bool
+
+	renderType LineRenderType
+	// 处于 LineRenderListCompletion 渲染类型时，需要渲染的补全
+	completions []*Completion
 }
 
 func newLine(
-	render *rRenderer,
 	newCodeFunc NewCodeFunc,
 	newPromptFunc NewPromptFunc,
 	history History,
 	autoIndent bool,
 ) *Line {
 	line := &Line{
-		renderer:      render,
 		newCodeFunc:   newCodeFunc,
 		newPromptFunc: newPromptFunc,
 		history:       history,
 		autoIndent:    autoIndent,
+		renderType:    LineRenderDefault,
 	}
 	line.reset()
 	return line
@@ -136,6 +146,9 @@ func (l *Line) reset() {
 	l.accept = false
 	l.abort = false
 	l.exit = false
+
+	l.renderType = LineRenderDefault
+	l.completions = nil
 
 	lines := l.history.GetAll()
 	// +1 是因为当前输入也要占个位置
@@ -488,8 +501,8 @@ func (l *Line) CreateCodeObj() Code {
 func (l *Line) ListCompletions() {
 	toMode(l, linemode.Normal)
 	results := l.CreateCodeObj().GetCompletions()
-	if len(results) > 0 && l.renderer != nil {
-		l.renderer.renderCompletions(results)
+	if len(results) > 0 {
+		l.renderType = LineRenderListCompletion
 	}
 }
 
@@ -756,7 +769,18 @@ func (l *Line) IsMultiline() bool {
 
 func (l *Line) Clear() {
 	toMode(l, linemode.Normal)
-	if l.renderer != nil {
-		l.renderer.clear()
-	}
+	l.renderType = LineRenderClear
+}
+
+func (l *Line) RenderType() LineRenderType {
+	return l.renderType
+}
+
+func (l *Line) GetRenderCompletions() []*Completion {
+	return l.completions
+}
+
+func (l *Line) ResetRenderType() {
+	l.renderType = LineRenderDefault
+	l.completions = nil
 }

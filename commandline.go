@@ -126,7 +126,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 	}()
 
 	render := newRender(c.option.Schema)
-	line := newLine(render, c.option.NewCodeFunc, c.option.NewPromptFunc, c.option.History, c.option.AutoIndent)
+	line := newLine(c.option.NewCodeFunc, c.option.NewPromptFunc, c.option.History, c.option.AutoIndent)
 	handler := NewBaseHandler(line)
 	is := NewInputStream(handler)
 	render.render(line.GetRenderContext())
@@ -177,7 +177,14 @@ func (c *CommandLine) ReadInput() (string, error) {
 			inputText = line.text()
 			break
 		}
+		switch line.renderType {
+		case LineRenderClear:
+			render.clear()
+		case LineRenderListCompletion:
+			render.renderCompletions(line.GetRenderCompletions())
+		}
 		render.render(line.GetRenderContext())
+		line.ResetRenderType()
 	}
 	DebugLog("return input: <%s>", inputText)
 	return inputText, nil
