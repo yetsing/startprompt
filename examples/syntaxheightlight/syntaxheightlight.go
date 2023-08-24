@@ -6,11 +6,12 @@ package main
 
 import (
 	"fmt"
+	"unicode"
+
 	"github.com/yetsing/startprompt"
 	"github.com/yetsing/startprompt/lexer"
 	"github.com/yetsing/startprompt/terminalcolor"
 	"github.com/yetsing/startprompt/token"
-	"unicode"
 )
 
 func isdigit(r rune) bool {
@@ -103,7 +104,7 @@ func main() {
 	c, err := startprompt.NewCommandLine(&startprompt.CommandLineOption{
 		// 如果想要自定义每个 token 的颜色，可以指定 schema
 		Schema:      schema,
-		NewCodeFunc: newHighlightCode,
+		CodeFactory: newHighlightCode,
 	})
 	if err != nil {
 		fmt.Printf("failed to startprompt.NewCommandLine: %v\n", err)

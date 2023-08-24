@@ -8,7 +8,7 @@ import (
 	"github.com/yetsing/startprompt/token"
 )
 
-type NewPromptFunc func(line *Line, code Code) Prompt
+type PromptFactory func(line *Line, code Code) Prompt
 
 type Prompt interface {
 	// GetPrompt 获取输入的提示符

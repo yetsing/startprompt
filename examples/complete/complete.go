@@ -67,7 +67,7 @@ func (c *CompleteCode) ContinueInput() bool {
 
 func main() {
 	c, err := startprompt.NewCommandLine(&startprompt.CommandLineOption{
-		NewCodeFunc: newCompleteCode,
+		CodeFactory: newCompleteCode,
 	})
 	if err != nil {
 		fmt.Printf("failed to startprompt.NewCommandLine: %v\n", err)

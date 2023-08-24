@@ -47,8 +47,8 @@ const (
 type CommandLineOption struct {
 	Schema        Schema
 	History       History
-	NewCodeFunc   NewCodeFunc
-	NewPromptFunc NewPromptFunc
+	CodeFactory   CodeFactory
+	PromptFactory PromptFactory
 
 	OnExit  AbortAction
 	OnAbort AbortAction
@@ -63,8 +63,8 @@ type CommandLineOption struct {
 var defaultCommandLineOption = &CommandLineOption{
 	Schema:        defaultSchema,
 	History:       NewMemHistory(),
-	NewCodeFunc:   newBaseCode,
-	NewPromptFunc: newBasePrompt,
+	CodeFactory:   newBaseCode,
+	PromptFactory: newBasePrompt,
 	OnAbort:       AbortActionRetry,
 	OnExit:        AbortActionReturnError,
 	AutoIndent:    false,
@@ -75,8 +75,8 @@ func (cp *CommandLineOption) copy() *CommandLineOption {
 	return &CommandLineOption{
 		Schema:        cp.Schema,
 		History:       cp.History,
-		NewCodeFunc:   cp.NewCodeFunc,
-		NewPromptFunc: cp.NewPromptFunc,
+		CodeFactory:   cp.CodeFactory,
+		PromptFactory: cp.PromptFactory,
 		OnAbort:       cp.OnAbort,
 		OnExit:        cp.OnExit,
 		AutoIndent:    cp.AutoIndent,
@@ -91,11 +91,11 @@ func (cp *CommandLineOption) update(other *CommandLineOption) {
 	if other.History != nil {
 		cp.History = other.History
 	}
-	if other.NewCodeFunc != nil {
-		cp.NewCodeFunc = other.NewCodeFunc
+	if other.CodeFactory != nil {
+		cp.CodeFactory = other.CodeFactory
 	}
-	if other.NewPromptFunc != nil {
-		cp.NewPromptFunc = other.NewPromptFunc
+	if other.PromptFactory != nil {
+		cp.PromptFactory = other.PromptFactory
 	}
 	if other.OnExit != AbortActionUnspecific {
 		cp.OnExit = other.OnExit
@@ -185,7 +185,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 	}()
 
 	render := newRender(c.option.Schema)
-	line := newLine(c.option.NewCodeFunc, c.option.NewPromptFunc, c.option.History, c.option.AutoIndent)
+	line := newLine(c.option.CodeFactory, c.option.PromptFactory, c.option.History, c.option.AutoIndent)
 	handler := NewBaseHandler(line)
 	is := NewInputStream(handler)
 	render.render(line.GetRenderContext())

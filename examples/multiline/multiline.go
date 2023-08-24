@@ -6,9 +6,10 @@ package main
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/yetsing/startprompt"
 	"github.com/yetsing/startprompt/token"
-	"strings"
 )
 
 type MultilineCode struct {
@@ -44,7 +45,7 @@ func (c *MultilineCode) ContinueInput() bool {
 
 func main() {
 	c, err := startprompt.NewCommandLine(&startprompt.CommandLineOption{
-		NewCodeFunc: newMultilineCode,
+		CodeFactory: newMultilineCode,
 		AutoIndent:  true,
 	})
 	if err != nil {

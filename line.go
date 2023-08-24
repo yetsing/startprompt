@@ -94,8 +94,8 @@ type Line struct {
 	mode           linemode.LineMode
 	completeState  *cCompletionState
 
-	newCodeFunc   NewCodeFunc
-	newPromptFunc NewPromptFunc
+	codeFactory   CodeFactory
+	promptFactory PromptFactory
 
 	history History
 
@@ -118,14 +118,14 @@ type Line struct {
 }
 
 func newLine(
-	newCodeFunc NewCodeFunc,
-	newPromptFunc NewPromptFunc,
+	newCodeFunc CodeFactory,
+	newPromptFunc PromptFactory,
 	history History,
 	autoIndent bool,
 ) *Line {
 	line := &Line{
-		newCodeFunc:   newCodeFunc,
-		newPromptFunc: newPromptFunc,
+		codeFactory:   newCodeFunc,
+		promptFactory: newPromptFunc,
 		history:       history,
 		autoIndent:    autoIndent,
 		renderType:    LineRenderDefault,
@@ -494,7 +494,7 @@ func (l *Line) GotoMatchingBracket() {
 }
 
 func (l *Line) CreateCodeObj() Code {
-	return l.newCodeFunc(l.Document())
+	return l.codeFactory(l.Document())
 }
 
 // ListCompletions 列出所有补全
@@ -605,7 +605,7 @@ func (l *Line) gotoCompletion(index int) {
 // GetRenderContext 返回渲染上下文信息
 func (l *Line) GetRenderContext() *RenderContext {
 	code := l.CreateCodeObj()
-	prompt := l.newPromptFunc(l, code)
+	prompt := l.promptFactory(l, code)
 	var completeState *cCompletionState
 	if l.mode.Is(linemode.Complete) && !l.abort && !l.accept {
 		completeState = l.completeState

@@ -88,8 +88,8 @@ func (c *MultilineCode) ContinueInput() bool {
 
 func main() {
 	c, err := startprompt.NewCommandLine(&startprompt.CommandLineOption{
-		NewCodeFunc:   newMultilineCode,
-		NewPromptFunc: NewPrompt,
+		CodeFactory:   newMultilineCode,
+		PromptFactory: NewPrompt,
 		Schema:        schema,
 	})
 	if err != nil {

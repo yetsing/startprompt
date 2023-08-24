@@ -11,7 +11,7 @@ type Completion struct {
 	Suffix string
 }
 
-type NewCodeFunc func(document *Document) Code
+type CodeFactory func(document *Document) Code
 
 type Code interface {
 	// GetTokens 返回分词后的 Token 列表
