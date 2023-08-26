@@ -3,7 +3,6 @@ package startprompt
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"os"
 
 	"github.com/mattn/go-runewidth"
@@ -16,13 +15,19 @@ type cCompletionMenu struct {
 	screen        *Screen
 	completeState *cCompletionState
 	maxHeight     int
+
+	progressButtonToken token.Token
+	progressBarToken    token.Token
 }
 
-func newCompleteMenu(screen *Screen, completeState *cCompletionState, maxHeight int) *cCompletionMenu {
+func newCompletionMenu(screen *Screen, completeState *cCompletionState, maxHeight int) *cCompletionMenu {
 	return &cCompletionMenu{
 		screen:        screen,
 		completeState: completeState,
 		maxHeight:     maxHeight,
+
+		progressButtonToken: token.NewToken(token.CompletionMenuProgressButton, " "),
+		progressBarToken:    token.NewToken(token.CompletionMenuProgressBar, " "),
 	}
 }
 
@@ -34,16 +39,16 @@ func (c *cCompletionMenu) getOrigin() Coordinate {
 }
 
 // getDrawCoordinate 返回菜单渲染位置坐标（因为是从左上角开始，所以这个就是左上角的坐标）
-func (c *cCompletionMenu) getDrawCoordinate(menuWidth int) Coordinate {
+// itemWidth 补全项的宽度
+func (c *cCompletionMenu) getDrawCoordinate(itemWidth int) Coordinate {
 	coordinate := c.getOrigin()
 	x := coordinate.X
 	y := coordinate.Y
 	y++
 	//    这里 x - 1 是因为前面会加个空格
 	x = maxInt(0, x-1)
-	//    补全项前后总共有 4 个空格
-	if x+menuWidth+4 > c.screen.Width() {
-		x -= (x + menuWidth + 4) - c.screen.Width() + 1
+	if x+itemWidth > c.screen.Width() {
+		x -= (x + itemWidth) - c.screen.Width() + 1
 	}
 	return Coordinate{
 		X: x,
@@ -51,8 +56,18 @@ func (c *cCompletionMenu) getDrawCoordinate(menuWidth int) Coordinate {
 	}
 }
 
-// getMenuWidth 计算补全菜单的宽度
+func (c *cCompletionMenu) showMeta() bool {
+	for _, completion := range c.completeState.currentCompletions {
+		if len(completion.DisplayMeta) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// getMenuWidth 返回补全展示文本的宽度
 func (c *cCompletionMenu) getMenuWidth() int {
+	maxDisplay := c.screen.Width() / 2
 	menuWidth := 0
 	for _, completion := range c.completeState.currentCompletions {
 		w := runewidth.StringWidth(completion.Display)
@@ -60,16 +75,29 @@ func (c *cCompletionMenu) getMenuWidth() int {
 			menuWidth = w
 		}
 	}
-	return menuWidth
+	return minInt(maxDisplay, menuWidth)
+}
+
+// getMenuMetaWidth 返回补全元信息的宽度
+func (c *cCompletionMenu) getMenuMetaWidth() int {
+	maxDisplayMeta := c.screen.Width() / 2
+	menuMetaWidth := 0
+	for _, completion := range c.completeState.currentCompletions {
+		if len(completion.DisplayMeta) == 0 {
+			continue
+		}
+		w := runewidth.StringWidth(completion.DisplayMeta)
+		if w > menuMetaWidth {
+			menuMetaWidth = w
+		}
+	}
+	return minInt(maxDisplayMeta, menuMetaWidth)
 }
 
 // 将菜单写入 screen 里面
 func (c *cCompletionMenu) write() {
 	completions := c.completeState.currentCompletions
 	index := c.completeState.completeIndex
-
-	//    计算补全菜单的宽度
-	menuWidth := c.getMenuWidth()
 
 	//    决定从哪个补全项开始展示
 	sliceFrom := 0
@@ -84,44 +112,54 @@ func (c *cCompletionMenu) write() {
 
 	sliceTo := minInt(sliceFrom+c.maxHeight, len(completions))
 
+	//    计算补全菜单的宽度
+	menuWidth := c.getMenuWidth()
+	menuMetaWidth := c.getMenuMetaWidth()
 	//    获取菜单的位置坐标
-	coordinate := c.getDrawCoordinate(menuWidth)
+	//    补全项前后总共有 5 个空格
+	coordinate := c.getDrawCoordinate(menuWidth + menuMetaWidth + 5)
+	showMeta := c.showMeta()
 	//    写入补全到 screen
 	for i, completion := range completions[sliceFrom:sliceTo] {
-		var tokenType token.TokenType
-		var button token.Token
-		//    判断补全项是否已选中
-		if i+sliceFrom == index {
-			tokenType = token.CompletionMenuCurrentCompletion
-			button = token.Token{
-				Type:    token.CompletionProgressButton,
-				Literal: " ",
-			}
-		} else {
-			tokenType = token.CompletionMenuCompletion
-			button = token.Token{
-				Type:    token.CompletionProgressBar,
-				Literal: " ",
-			}
+		//    i+sliceFrom == index 判断补全项是否已选中
+		tks := []token.Token{
+			token.NewToken(token.Unspecific, " "),
+			c.getMenuItemToken(completion, i+sliceFrom == index, menuWidth),
 		}
-
-		c.screen.WriteTokensAtPos(coordinate.X, coordinate.Y+i, []token.Token{
-			{
-				Type:    token.Unspecific,
-				Literal: " ",
-			},
-			{
-				Type:    tokenType,
-				Literal: fmt.Sprintf(" %s", ljustWidth(completion.Display, menuWidth)),
-			},
-			button,
-			{
-				Type:    token.Unspecific,
-				Literal: " ",
-			},
-		})
-
+		if showMeta {
+			tks = append(
+				tks,
+				c.getMenuItemMetaToken(completion, i+sliceFrom == index, menuMetaWidth),
+			)
+		}
+		if i+sliceFrom == index {
+			tks = append(tks, c.progressButtonToken)
+		} else {
+			tks = append(tks, c.progressBarToken)
+		}
+		tks = append(tks, token.NewToken(token.Unspecific, " "))
+		c.screen.WriteTokensAtPos(coordinate.X, coordinate.Y+i, tks)
 	}
+}
+
+func (c *cCompletionMenu) getMenuItemToken(completion *Completion, isCurrentCompletion bool, width int) token.Token {
+	var ttype token.TokenType
+	if isCurrentCompletion {
+		ttype = token.CompletionMenuCompletionCurrent
+	} else {
+		ttype = token.CompletionMenuCompletion
+	}
+	return token.NewToken(ttype, " "+ljustWidth(completion.Display, width))
+}
+
+func (c *cCompletionMenu) getMenuItemMetaToken(completion *Completion, isCurrentCompletion bool, width int) token.Token {
+	var ttype token.TokenType
+	if isCurrentCompletion {
+		ttype = token.CompletionMenuMetaCurrent
+	} else {
+		ttype = token.CompletionMenuMeta
+	}
+	return token.NewToken(ttype, " "+ljustWidth(completion.DisplayMeta, width))
 }
 
 func newRender(schema Schema) *rRenderer {
@@ -172,7 +210,7 @@ func (r *rRenderer) getNewScreen(renderContext *RenderContext) *Screen {
 
 	//    写入补全菜单
 	if renderContext.completeState != nil {
-		newCompleteMenu(screen, renderContext.completeState, 7).write()
+		newCompletionMenu(screen, renderContext.completeState, 7).write()
 	}
 
 	return screen

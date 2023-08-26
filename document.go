@@ -347,6 +347,20 @@ func (d *Document) findNextWordEnding(includeCurrentPosition bool) int {
 	}
 }
 
+// EmptyLineCountAtTheEnd 统计输入文本中底部空行数量
+func (d *Document) EmptyLineCountAtTheEnd() int {
+	count := 0
+	lines := d.lines()
+	for i := len(lines) - 1; i >= 0; i-- {
+		if IsSpace(lines[i]) {
+			count++
+		} else {
+			break
+		}
+	}
+	return count
+}
+
 // ================
 // 下面的都是缓存相关的方法
 // ================

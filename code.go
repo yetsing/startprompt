@@ -9,6 +9,8 @@ type Completion struct {
 	Display string
 	// 加到用户输入后面的
 	Suffix string
+	// 补全的元信息，比如补全是变量或者方法之类的
+	DisplayMeta string
 }
 
 type CodeFactory func(document *Document) Code

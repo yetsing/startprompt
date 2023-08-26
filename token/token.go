@@ -118,10 +118,12 @@ const (
 	PromptSecondLinePrefix TokenType = Prompt + ".secondlineprefix"
 
 	CompletionMenu                  TokenType = "completionmenu"
-	CompletionMenuCurrentCompletion TokenType = CompletionMenu + ".currentcompletion"
 	CompletionMenuCompletion        TokenType = CompletionMenu + ".completion"
-	CompletionProgressButton        TokenType = CompletionMenu + ".progressbutton"
-	CompletionProgressBar           TokenType = CompletionMenu + ".progressbar"
+	CompletionMenuCompletionCurrent TokenType = CompletionMenuCompletion + ".current"
+	CompletionMenuMeta              TokenType = CompletionMenu + ".meta"
+	CompletionMenuMetaCurrent       TokenType = CompletionMenuMeta + ".current"
+	CompletionMenuProgressButton    TokenType = CompletionMenu + ".progressbutton"
+	CompletionMenuProgressBar       TokenType = CompletionMenu + ".progressbar"
 
 	EOF TokenType = "EOF"
 )

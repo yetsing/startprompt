@@ -1,12 +1,12 @@
 package main
 
 /*
-   多行输入
+多行输入
+需要按下两次 Enter 才能结束输入
 */
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/yetsing/startprompt"
 	"github.com/yetsing/startprompt/token"
@@ -39,8 +39,7 @@ func (c *MultilineCode) GetCompletions() []*startprompt.Completion {
 
 func (c *MultilineCode) ContinueInput() bool {
 	// 用于需要连续按下两次 Enter 才结束当前输入
-	text := strings.TrimRight(c.document.Text(), " ")
-	return len(text) > 0 && !strings.HasSuffix(text, "\n")
+	return c.document.EmptyLineCountAtTheEnd() == 0
 }
 
 func main() {

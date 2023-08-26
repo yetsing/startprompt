@@ -30,8 +30,10 @@ var defaultSchema = map[token.TokenType]terminalcolor.Style{
 	token.Error:   terminalcolor.NewColorStyleHex("#000000", "#ff8888"),
 	token.Comment: terminalcolor.NewFgColorStyleHex("#0000dd"),
 
-	token.CompletionMenuCurrentCompletion: terminalcolor.NewColorStyleHex("#000000", "#dddddd"),
-	token.CompletionMenuCompletion:        terminalcolor.NewColorStyleHex("#ffff88", "#888888"),
-	token.CompletionProgressButton:        terminalcolor.NewColorStyleHex("", "#000000"),
-	token.CompletionProgressBar:           terminalcolor.NewColorStyleHex("", "#aaaaaa"),
+	token.CompletionMenuCompletion:        terminalcolor.NewColorStyleHex("#ffffbb", "#888888"),
+	token.CompletionMenuCompletionCurrent: terminalcolor.NewColorStyleHex("#000000", "#dddddd"),
+	token.CompletionMenuMetaCurrent:       terminalcolor.NewColorStyleHex("#000000", "#bbbbbb"),
+	token.CompletionMenuMeta:              terminalcolor.NewColorStyleHex("#cccccc", "#888888"),
+	token.CompletionMenuProgressBar:       terminalcolor.NewColorStyleHex("", "#aaaaaa"),
+	token.CompletionMenuProgressButton:    terminalcolor.NewColorStyleHex("", "#000000"),
 }
