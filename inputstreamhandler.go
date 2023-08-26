@@ -271,7 +271,7 @@ func (b *BaseHandler) CtrlI(...rune) {
 func (b *BaseHandler) CtrlJ(...rune) {
 	b.line.ToNormalMode()
 	// ctrl_j 相当于按下 Enter
-	b.enter()
+	b.line.AutoEnter()
 }
 func (b *BaseHandler) CtrlK(...rune) {
 	b.line.ToNormalMode()
@@ -283,7 +283,7 @@ func (b *BaseHandler) CtrlL(...rune) {
 func (b *BaseHandler) CtrlM(...rune) {
 	b.line.ToNormalMode()
 	// ctrl_m 相等于 "\r" ，我们把他当成 \n 的效果
-	b.enter()
+	b.line.AutoEnter()
 }
 func (b *BaseHandler) CtrlN(...rune) {
 	b.line.AutoDown()
@@ -344,30 +344,32 @@ func (b *BaseHandler) DeleteAction(...rune) {
 	b.line.ToNormalMode()
 	b.line.DeleteCharacterAfterCursor(1)
 }
-func (b *BaseHandler) PageUp(...rune)       {}
-func (b *BaseHandler) PageDown(...rune)     {}
-func (b *BaseHandler) Backtab(...rune)      {}
-func (b *BaseHandler) F1(...rune)           {}
-func (b *BaseHandler) F2(...rune)           {}
-func (b *BaseHandler) F3(...rune)           {}
-func (b *BaseHandler) F4(...rune)           {}
-func (b *BaseHandler) F5(...rune)           {}
-func (b *BaseHandler) F6(...rune)           {}
-func (b *BaseHandler) F7(...rune)           {}
-func (b *BaseHandler) F8(...rune)           {}
-func (b *BaseHandler) F9(...rune)           {}
-func (b *BaseHandler) F10(...rune)          {}
-func (b *BaseHandler) F11(...rune)          {}
-func (b *BaseHandler) F12(...rune)          {}
-func (b *BaseHandler) F13(...rune)          {}
-func (b *BaseHandler) F14(...rune)          {}
-func (b *BaseHandler) F15(...rune)          {}
-func (b *BaseHandler) F16(...rune)          {}
-func (b *BaseHandler) F17(...rune)          {}
-func (b *BaseHandler) F18(...rune)          {}
-func (b *BaseHandler) F19(...rune)          {}
-func (b *BaseHandler) F20(...rune)          {}
-func (b *BaseHandler) EscapeAction(...rune) {}
+func (b *BaseHandler) PageUp(...rune)   {}
+func (b *BaseHandler) PageDown(...rune) {}
+func (b *BaseHandler) Backtab(...rune)  {}
+func (b *BaseHandler) F1(...rune)       {}
+func (b *BaseHandler) F2(...rune)       {}
+func (b *BaseHandler) F3(...rune)       {}
+func (b *BaseHandler) F4(...rune)       {}
+func (b *BaseHandler) F5(...rune)       {}
+func (b *BaseHandler) F6(...rune)       {}
+func (b *BaseHandler) F7(...rune)       {}
+func (b *BaseHandler) F8(...rune)       {}
+func (b *BaseHandler) F9(...rune)       {}
+func (b *BaseHandler) F10(...rune)      {}
+func (b *BaseHandler) F11(...rune)      {}
+func (b *BaseHandler) F12(...rune)      {}
+func (b *BaseHandler) F13(...rune)      {}
+func (b *BaseHandler) F14(...rune)      {}
+func (b *BaseHandler) F15(...rune)      {}
+func (b *BaseHandler) F16(...rune)      {}
+func (b *BaseHandler) F17(...rune)      {}
+func (b *BaseHandler) F18(...rune)      {}
+func (b *BaseHandler) F19(...rune)      {}
+func (b *BaseHandler) F20(...rune)      {}
+func (b *BaseHandler) EscapeAction(...rune) {
+	b.line.ToNormalMode()
+}
 func (b *BaseHandler) InsertChar(a ...rune) {
 	b.line.ToNormalMode()
 	b.line.InsertText(a, true)
@@ -391,14 +393,5 @@ func (b *BaseHandler) tab() {
 		if b.line.mode.Is(linemode.Normal) {
 			b.line.InsertText([]rune("    "), true)
 		}
-	}
-}
-
-func (b *BaseHandler) enter() {
-	line := b.line
-	if line.IsMultiline() {
-		line.Newline()
-	} else {
-		line.ReturnInput()
 	}
 }

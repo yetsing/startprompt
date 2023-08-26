@@ -113,17 +113,21 @@ type CommandLine struct {
 	reader *bufio.Reader
 	writer *bufio.Writer
 
+	//    配置选项
 	option *CommandLineOption
 
+	//    下面几个都用用于并发的情况
+	//    等待输入超时时间
 	inputTimeout time.Duration
-
+	//    读取错误
 	readError error
-
+	//     重画和读取 channel
 	redrawChannel chan rune
 	readChannel   chan rune
-
+	//    是否正在读取用户输入
 	isReadingInput bool
 
+	//   下面几个对应用户的特殊操作：退出、丢弃、确定
 	exitFlag   bool
 	abortFlag  bool
 	returnCode Code
@@ -294,7 +298,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 				is.Feed(r)
 			case PollEventTimeout:
 				//    读取用户输入超时
-				c.OnInputTimeout(line.CreateCodeObj())
+				c.OnInputTimeout(line.CreateCode())
 				continue
 			}
 		} else {

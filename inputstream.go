@@ -20,6 +20,12 @@ type InputStream struct {
 	previous string
 }
 
+func (is *InputStream) FeedData(data string) {
+	for _, r := range data {
+		is.Feed(r)
+	}
+}
+
 // Feed 根据输入触发对应的事件
 func (is *InputStream) Feed(r rune) {
 	var buffer []rune
@@ -31,7 +37,7 @@ func (is *InputStream) Feed(r rune) {
 		// 检查是不是快捷键操作
 		action, found := keyActions[key]
 		if found {
-			is.callHandler(action)
+			is.callHandler(action, []rune(key)...)
 			is.previous = ""
 			break
 		}
@@ -49,7 +55,7 @@ func (is *InputStream) Feed(r rune) {
 			first := runeAt(is.previous, 0)
 			// 按下 Esc 键就会收到 '\x1b' ，所以这里需要判断一下特殊处理
 			if first == '\x1b' {
-				is.callHandler(keys.EscapeAction)
+				is.callHandler(keys.EscapeAction, '\x1b')
 			} else {
 				// 如果不是快捷键操作，那么就是正常的输入
 				is.callHandler(keys.InsertChar, first)

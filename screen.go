@@ -10,16 +10,51 @@ import (
 	"github.com/yetsing/startprompt/token"
 )
 
+var displayMapping = map[string]string{
+	"\x00": "^@", // Control space
+	"\x01": "^A",
+	"\x02": "^B",
+	"\x03": "^C",
+	"\x04": "^D",
+	"\x05": "^E",
+	"\x06": "^F",
+	"\x07": "^G",
+	"\x08": "^H",
+	"\x09": "^I",
+	"\x0a": "^J",
+	"\x0b": "^K",
+	"\x0c": "^L",
+	"\x0d": "^M",
+	"\x0e": "^N",
+	"\x0f": "^O",
+	"\x10": "^P",
+	"\x11": "^Q",
+	"\x12": "^R",
+	"\x13": "^S",
+	"\x14": "^T",
+	"\x15": "^U",
+	"\x16": "^V",
+	"\x17": "^W",
+	"\x18": "^X",
+	"\x19": "^Y",
+	"\x1a": "^Z",
+	"\x1b": "^[", // Escape
+	"\x1c": "^\\",
+	"\x1d": "^]",
+	"\x1f": "^_",
+	"\x7f": "^?", // Control backspace
+}
+
 type Char struct {
-	char  rune
+	char  string
 	style terminalcolor.Style
 }
 
 func (c *Char) output() string {
 	if c.style != nil {
-		return terminalcolor.ApplyStyle(c.style, string(c.char), true)
+		return terminalcolor.ApplyStyle(c.style, c.char, true)
 	} else {
-		return string(c.char)
+		return c.char
 	}
 }
 
@@ -32,8 +67,12 @@ func (c *Char) width() int {
 }
 
 func newChar(r rune, style terminalcolor.Style) *Char {
+	ch := string(r)
+	if _, found := displayMapping[ch]; found {
+		ch = displayMapping[ch]
+	}
 	return &Char{
-		char:  r,
+		char:  ch,
 		style: style,
 	}
 }
@@ -56,6 +95,7 @@ func NewScreen(schema Schema, size _Size) *Screen {
 	}
 }
 
+// Screen 以坐标维度缓冲输出字符
 type Screen struct {
 	schema Schema
 	// {y: {x: Char}}
@@ -205,7 +245,7 @@ func (s *Screen) WriteRune(r rune, style terminalcolor.Style, saveInputPos bool)
 
 func (s *Screen) writeAtPos(x int, y int, char *Char) {
 	// 超出屏幕的不进行写入
-	if y >= s.size.height {
+	if x >= s.size.width {
 		return
 	}
 	if _, found := s.buffer[y]; !found {
@@ -214,6 +254,7 @@ func (s *Screen) writeAtPos(x int, y int, char *Char) {
 	s.buffer[y][x] = char
 }
 
+// saveInputPos 保存行列到 xy 坐标的映射
 func (s *Screen) saveInputPos() {
 	s.cursorMap[Coordinate{s.inputCol, s.inputRow}] = Coordinate{s.x, s.y}
 }
@@ -222,6 +263,7 @@ func (s *Screen) setSecondLinePrefix(secondLinePrefixFunc func() []token.Token) 
 	s.secondLinePrefixFunc = secondLinePrefixFunc
 }
 
+// getCursorCoordinate 根据行列坐标得到 xy 坐标
 func (s *Screen) getCursorCoordinate(row int, col int) Coordinate {
 	return s.cursorMap[Coordinate{col, row}]
 }

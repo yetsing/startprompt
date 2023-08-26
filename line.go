@@ -176,8 +176,7 @@ func (l *Line) SaveToUndoStack() {
 	}
 }
 
-// TransformLines 转换指定索引范围内的行文本，索引支持负数.
-// 会忽略超出范围的索引
+// TransformLines 转换指定行文本，索引支持负数，会忽略超出范围的部分
 //
 //	例如想让某几行转成大写：
 //		TransformLines(5, 10, strings.ToUpper)
@@ -191,6 +190,22 @@ func (l *Line) TransformLines(start int, end int, transformCallback func(string)
 	}
 	result := strings.Join(lines, "\n")
 	l.setText([]rune(result))
+}
+
+// TransformRegion 转换指定索引区域文本，索引支持负数，会忽略超出范围的部分
+func (l *Line) TransformRegion(from int, to int, transformCallback func(string) string) {
+	if from >= to {
+		panic(fmt.Sprintf("TransformRegion from=%d not less than to=%d", from, to))
+	}
+	from = limitInt(from, len(l.buffer))
+	to = limitInt(to, len(l.buffer))
+	transformed := transformCallback(string(l.buffer[from:to]))
+	result := concatRunes(
+		l.buffer[:from],
+		[]rune(transformed),
+		l.buffer[to:],
+	)
+	l.setText(result)
 }
 
 func (l *Line) Document() *Document {
@@ -438,7 +453,7 @@ func (l *Line) GotoMatchingBracket() {
 	}
 }
 
-func (l *Line) CreateCodeObj() Code {
+func (l *Line) CreateCode() Code {
 	return l.codeFactory(l.Document())
 }
 
@@ -448,7 +463,7 @@ func (l *Line) ListCompletions() {
 
 // Complete 自动补全，如果有补全返回 true
 func (l *Line) Complete() bool {
-	result := l.CreateCodeObj().Complete()
+	result := l.CreateCode().Complete()
 	if len(result) > 0 {
 		runes := []rune(result)
 		l.InsertText(runes, true)
@@ -501,7 +516,7 @@ func (l *Line) CompletePrevious(count int) {
 
 // StartComplete 开始补全
 func (l *Line) StartComplete() {
-	currentCompletions := l.CreateCodeObj().GetCompletions()
+	currentCompletions := l.CreateCode().GetCompletions()
 
 	if len(currentCompletions) > 0 {
 		l.completeState = newCompletionState(l.Document(), currentCompletions)
@@ -541,7 +556,7 @@ func (l *Line) gotoCompletion(index int) {
 
 // GetRenderContext 返回渲染上下文信息
 func (l *Line) GetRenderContext() *RenderContext {
-	code := l.CreateCodeObj()
+	code := l.CreateCode()
 	prompt := l.promptFactory(l, code)
 	var completeState *cCompletionState
 	if l.mode.Is(linemode.Complete) {
@@ -581,6 +596,15 @@ func (l *Line) Newline() {
 	l.InsertText([]rune{'\n'}, true)
 	if l.autoIndent {
 		l.InsertText([]rune(spaces), true)
+	}
+}
+
+// AutoEnter 自动处理 Enter
+func (l *Line) AutoEnter() {
+	if l.IsMultiline() {
+		l.Newline()
+	} else {
+		l.ReturnInput()
 	}
 }
 
@@ -685,7 +709,7 @@ func (l *Line) ReturnInput() {
 		}
 	}
 
-	l.callbacks.ReturnInput(l.CreateCodeObj())
+	l.callbacks.ReturnInput(l.CreateCode())
 }
 
 func (l *Line) HasText() bool {
@@ -693,7 +717,7 @@ func (l *Line) HasText() bool {
 }
 
 func (l *Line) IsMultiline() bool {
-	res := l.CreateCodeObj().ContinueInput()
+	res := l.CreateCode().ContinueInput()
 	return res
 }
 
