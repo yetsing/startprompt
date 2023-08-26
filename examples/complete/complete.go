@@ -2,6 +2,11 @@ package main
 
 /*
 展示补全的用法和效果
+
+按下 Tab 补全当前单词
+- 如果只有一个匹配的补全，补全文本直接添加在后面
+- 如果有多个，展示所有补全， Ctrl-P 和 Ctrl-N 上下移动选择补全项，按 Tab 则会使用当前选中的补全
+- 按 Esc 或者 Ctrl+[ 退出补全（注意：需要按两下）
 */
 
 import (
@@ -12,15 +17,49 @@ import (
 	"github.com/yetsing/startprompt/token"
 )
 
-type CompleteCode struct {
+type AnimalCode struct {
 	document *startprompt.Document
+	animals  []string
 }
 
 func newCompleteCode(document *startprompt.Document) startprompt.Code {
-	return &CompleteCode{document: document}
+	return &AnimalCode{
+		document: document,
+		animals: []string{
+			"bat",
+			"bear",
+			"beaver",
+			"bee",
+			"bison",
+			"butterfly",
+			"cat",
+			"chicken",
+			"crocodile",
+			"dinosaur",
+			"dog",
+			"dolphine",
+			"dove",
+			"duck",
+			"eagle",
+			"elephant",
+			"fish",
+			"goat",
+			"gorilla",
+			"kangoroo",
+			"leopard",
+			"lion",
+			"mouse",
+			"rabbit",
+			"rat",
+			"snake",
+			"spider",
+			"turkey",
+			"turtle",
+		},
+	}
 }
 
-func (c *CompleteCode) GetTokens() []token.Token {
+func (c *AnimalCode) GetTokens() []token.Token {
 	return []token.Token{
 		{
 			token.Unspecific,
@@ -29,39 +68,31 @@ func (c *CompleteCode) GetTokens() []token.Token {
 	}
 }
 
-func (c *CompleteCode) Complete() string {
+func (c *AnimalCode) Complete() string {
 	completions := c.GetCompletions()
-	r := c.document.CharBeforeCursor()
-	if len(r) == 0 {
-		return ""
-	}
-	for _, completion := range completions {
-		if strings.HasPrefix(completion.Display, r) {
-			return completion.Suffix[len(r):]
-		}
+	if len(completions) == 1 {
+		return completions[0].Suffix
 	}
 	return ""
 }
 
-func (c *CompleteCode) GetCompletions() []*startprompt.Completion {
-	// 仅做展示，所以返回固定值
-	return []*startprompt.Completion{
-		{
-			Display: "hello",
-			Suffix:  "hello",
-		},
-		{
-			Display: "world",
-			Suffix:  "world",
-		},
-		{
-			Display: "中文",
-			Suffix:  "中文",
-		},
+func (c *AnimalCode) GetCompletions() []*startprompt.Completion {
+	word := c.document.GetWordBeforeCursor()
+
+	var completions []*startprompt.Completion
+	for _, animal := range c.animals {
+		if strings.HasPrefix(animal, word) {
+			cp := &startprompt.Completion{
+				Display: animal,
+				Suffix:  animal[len(word):],
+			}
+			completions = append(completions, cp)
+		}
 	}
+	return completions
 }
 
-func (c *CompleteCode) ContinueInput() bool {
+func (c *AnimalCode) ContinueInput() bool {
 	return false
 }
 
@@ -73,6 +104,7 @@ func main() {
 		fmt.Printf("failed to startprompt.NewCommandLine: %v\n", err)
 		return
 	}
+	fmt.Println("Press tab to complete")
 	line, err := c.ReadInput()
 	if err != nil {
 		fmt.Printf("ReadInput error: %v\n", err)

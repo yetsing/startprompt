@@ -252,6 +252,19 @@ func (d *Document) hasMatchAtCurrentPosition(sub string) bool {
 	return strings.HasPrefix(d.TextAfterCursor(), sub)
 }
 
+// GetWordBeforeCursor 获取光标前的单词
+func (d *Document) GetWordBeforeCursor() string {
+	if IsSpace(d.CharBeforeCursor()) {
+		return ""
+	} else {
+		offset := d.findStartOfPreviousWord()
+		start := d.cursorPosition + offset
+		text := d.TextBeforeCursor()
+		word := []rune(text)[start:]
+		return string(word)
+	}
+}
+
 // 找到光标前第一个单词开头的位置记为 S ，返回 S 与光标的相对位置
 // 找不到返回 0
 func (d *Document) findStartOfPreviousWord() int {

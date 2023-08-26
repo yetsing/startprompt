@@ -138,3 +138,12 @@ func RepeatString(s string, n int) string {
 	}
 	return sb.String()
 }
+
+func IsSpace(s string) bool {
+	for _, r := range s {
+		if !unicode.IsSpace(r) {
+			return false
+		}
+	}
+	return true
+}

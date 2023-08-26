@@ -476,7 +476,7 @@ func (l *Line) Complete() bool {
 // CompleteNext 选择下面第 count 个补全
 func (l *Line) CompleteNext(count int) {
 	if !l.mode.Is(linemode.Complete) {
-		l.StartComplete()
+		l.StartComplete(true)
 	} else {
 		completionsCount := len(l.completeState.currentCompletions)
 
@@ -497,7 +497,7 @@ func (l *Line) CompleteNext(count int) {
 func (l *Line) CompletePrevious(count int) {
 
 	if !l.mode.Is(linemode.Complete) {
-		l.StartComplete()
+		l.StartComplete(false)
 	}
 
 	if l.completeState != nil {
@@ -515,7 +515,7 @@ func (l *Line) CompletePrevious(count int) {
 }
 
 // StartComplete 开始补全
-func (l *Line) StartComplete() {
+func (l *Line) StartComplete(gotoFirst bool) {
 	currentCompletions := l.CreateCode().GetCompletions()
 
 	if len(currentCompletions) > 0 {
@@ -523,14 +523,28 @@ func (l *Line) StartComplete() {
 		text := l.completeState.currentCompletionText()
 		l.InsertText([]rune(text), true)
 		l.mode = linemode.Complete
+		if gotoFirst {
+			l.gotoCompletion(0)
+		}
 	} else {
 		l.mode = linemode.Normal
 		l.completeState = nil
 	}
 }
 
+// AcceptComplete 接受当前选中的补全
+func (l *Line) AcceptComplete() {
+	l.mode = linemode.Normal
+	l.completeState = nil
+}
+
 // ExitComplete 退出补全
 func (l *Line) ExitComplete() {
+	DebugLog("ExitComplete")
+	if !l.mode.Is(linemode.Complete) {
+		return
+	}
+	l.gotoCompletion(-1)
 	l.mode = linemode.Normal
 	l.completeState = nil
 }
@@ -737,6 +751,6 @@ func (l *Line) ToMode(modes ...linemode.LineMode) {
 	if l.mode.Is(linemode.IncrementalSearch) {
 
 	} else if l.mode.Is(linemode.Complete) {
-		l.ExitComplete()
+		l.AcceptComplete()
 	}
 }

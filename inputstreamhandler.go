@@ -368,7 +368,7 @@ func (b *BaseHandler) F18(...rune)      {}
 func (b *BaseHandler) F19(...rune)      {}
 func (b *BaseHandler) F20(...rune)      {}
 func (b *BaseHandler) EscapeAction(...rune) {
-	b.line.ToNormalMode()
+	b.line.ExitComplete()
 }
 func (b *BaseHandler) InsertChar(a ...rune) {
 	b.line.ToNormalMode()
@@ -383,8 +383,7 @@ func (b *BaseHandler) needsToSave(event keys.Event) bool {
 
 func (b *BaseHandler) tab() {
 	if b.line.mode.Is(linemode.Complete) {
-		b.line.CompleteNext(0)
-		b.line.ExitComplete()
+		b.line.AcceptComplete()
 		return
 	}
 	if !b.line.Complete() {
