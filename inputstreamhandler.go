@@ -1,9 +1,12 @@
 package startprompt
 
-import "github.com/yetsing/startprompt/enums/linemode"
+import (
+	"github.com/yetsing/startprompt/enums/linemode"
+	"github.com/yetsing/startprompt/keys"
+)
 
 type InputStreamHandler interface {
-	Handle(action Event, a ...rune)
+	Handle(action keys.Event, a ...rune)
 	// 下面的方法跟事件一一对应
 
 	CtrlSpace(...rune)
@@ -75,7 +78,7 @@ type InputStreamHandler interface {
 type BaseHandler struct {
 	line *Line
 	// 最后处理的事件
-	lastEvent Event
+	lastEvent keys.Event
 	// 用户按了两次 tab
 	secondTab bool
 }
@@ -84,140 +87,140 @@ func NewBaseHandler(line *Line) *BaseHandler {
 	return &BaseHandler{line: line, secondTab: false}
 }
 
-func (b *BaseHandler) Handle(event Event, a ...rune) {
+func (b *BaseHandler) Handle(event keys.Event, a ...rune) {
 	b.lastEvent = event
 	if b.needsToSave(event) {
 		b.line.SaveToUndoStack()
 	}
 
 	switch event {
-	case CtrlSpace:
+	case keys.CtrlSpace:
 		b.CtrlSpace(a...)
-	case CtrlA:
+	case keys.CtrlA:
 		b.CtrlA(a...)
-	case CtrlB:
+	case keys.CtrlB:
 		b.CtrlB(a...)
-	case CtrlC:
+	case keys.CtrlC:
 		b.CtrlC(a...)
-	case CtrlD:
+	case keys.CtrlD:
 		b.CtrlD(a...)
-	case CtrlE:
+	case keys.CtrlE:
 		b.CtrlE(a...)
-	case CtrlF:
+	case keys.CtrlF:
 		b.CtrlF(a...)
-	case CtrlG:
+	case keys.CtrlG:
 		b.CtrlG(a...)
-	case CtrlH:
+	case keys.CtrlH:
 		b.CtrlH(a...)
-	case CtrlI:
+	case keys.CtrlI:
 		b.CtrlI(a...)
-	case CtrlJ:
+	case keys.CtrlJ:
 		b.CtrlJ(a...)
-	case CtrlK:
+	case keys.CtrlK:
 		b.CtrlK(a...)
-	case CtrlL:
+	case keys.CtrlL:
 		b.CtrlL(a...)
-	case CtrlM:
+	case keys.CtrlM:
 		b.CtrlM(a...)
-	case CtrlN:
+	case keys.CtrlN:
 		b.CtrlN(a...)
-	case CtrlO:
+	case keys.CtrlO:
 		b.CtrlO(a...)
-	case CtrlP:
+	case keys.CtrlP:
 		b.CtrlP(a...)
-	case CtrlQ:
+	case keys.CtrlQ:
 		b.CtrlQ(a...)
-	case CtrlR:
+	case keys.CtrlR:
 		b.CtrlR(a...)
-	case CtrlS:
+	case keys.CtrlS:
 		b.CtrlS(a...)
-	case CtrlT:
+	case keys.CtrlT:
 		b.CtrlT(a...)
-	case CtrlU:
+	case keys.CtrlU:
 		b.CtrlU(a...)
-	case CtrlV:
+	case keys.CtrlV:
 		b.CtrlV(a...)
-	case CtrlW:
+	case keys.CtrlW:
 		b.CtrlW(a...)
-	case CtrlX:
+	case keys.CtrlX:
 		b.CtrlX(a...)
-	case CtrlY:
+	case keys.CtrlY:
 		b.CtrlY(a...)
-	case CtrlZ:
+	case keys.CtrlZ:
 		b.CtrlZ(a...)
-	case CtrlBackslash:
+	case keys.CtrlBackslash:
 		b.CtrlBackslash(a...)
-	case CtrlSquareClose:
+	case keys.CtrlSquareClose:
 		b.CtrlSquareClose(a...)
-	case CtrlCircumflex:
+	case keys.CtrlCircumflex:
 		b.CtrlCircumflex(a...)
-	case CtrlUnderscore:
+	case keys.CtrlUnderscore:
 		b.CtrlUnderscore(a...)
-	case Backspace:
+	case keys.Backspace:
 		b.Backspace(a...)
-	case ArrowUp:
+	case keys.ArrowUp:
 		b.ArrowUp(a...)
-	case ArrowDown:
+	case keys.ArrowDown:
 		b.ArrowDown(a...)
-	case ArrowRight:
+	case keys.ArrowRight:
 		b.ArrowRight(a...)
-	case ArrowLeft:
+	case keys.ArrowLeft:
 		b.ArrowLeft(a...)
-	case Home:
+	case keys.Home:
 		b.Home(a...)
-	case End:
+	case keys.End:
 		b.End(a...)
-	case DeleteAction:
+	case keys.DeleteAction:
 		b.DeleteAction(a...)
-	case PageUp:
+	case keys.PageUp:
 		b.PageUp(a...)
-	case PageDown:
+	case keys.PageDown:
 		b.PageDown(a...)
-	case Backtab:
+	case keys.Backtab:
 		b.Backtab(a...)
-	case F1:
+	case keys.F1:
 		b.F1(a...)
-	case F2:
+	case keys.F2:
 		b.F2(a...)
-	case F3:
+	case keys.F3:
 		b.F3(a...)
-	case F4:
+	case keys.F4:
 		b.F4(a...)
-	case F5:
+	case keys.F5:
 		b.F5(a...)
-	case F6:
+	case keys.F6:
 		b.F6(a...)
-	case F7:
+	case keys.F7:
 		b.F7(a...)
-	case F8:
+	case keys.F8:
 		b.F8(a...)
-	case F9:
+	case keys.F9:
 		b.F9(a...)
-	case F10:
+	case keys.F10:
 		b.F10(a...)
-	case F11:
+	case keys.F11:
 		b.F11(a...)
-	case F12:
+	case keys.F12:
 		b.F12(a...)
-	case F13:
+	case keys.F13:
 		b.F13(a...)
-	case F14:
+	case keys.F14:
 		b.F14(a...)
-	case F15:
+	case keys.F15:
 		b.F15(a...)
-	case F16:
+	case keys.F16:
 		b.F16(a...)
-	case F17:
+	case keys.F17:
 		b.F17(a...)
-	case F18:
+	case keys.F18:
 		b.F18(a...)
-	case F19:
+	case keys.F19:
 		b.F19(a...)
-	case F20:
+	case keys.F20:
 		b.F20(a...)
-	case EscapeAction:
+	case keys.EscapeAction:
 		b.EscapeAction(a...)
-	case InsertChar:
+	case keys.InsertChar:
 		b.InsertChar(a...)
 	}
 }
@@ -225,15 +228,19 @@ func (b *BaseHandler) Handle(event Event, a ...rune) {
 func (b *BaseHandler) CtrlSpace(...rune) {
 }
 func (b *BaseHandler) CtrlA(...rune) {
+	b.line.ToNormalMode()
 	b.line.CursorToStartOfLine(false)
 }
 func (b *BaseHandler) CtrlB(...rune) {
+	b.line.ToNormalMode()
 	b.line.CursorLeft()
 }
 func (b *BaseHandler) CtrlC(...rune) {
+	b.line.ToNormalMode()
 	b.line.Abort()
 }
 func (b *BaseHandler) CtrlD(...rune) {
+	b.line.ToNormalMode()
 	line := b.line
 	// 有输入文本时，表现为删除 delete ；否则是退出
 	if line.HasText() {
@@ -243,15 +250,18 @@ func (b *BaseHandler) CtrlD(...rune) {
 	}
 }
 func (b *BaseHandler) CtrlE(...rune) {
+	b.line.ToNormalMode()
 	b.line.CursorToEndOfLine()
 }
 func (b *BaseHandler) CtrlF(...rune) {
+	b.line.ToNormalMode()
 	b.line.CursorRight()
 }
 func (b *BaseHandler) CtrlG(...rune) {
 
 }
 func (b *BaseHandler) CtrlH(...rune) {
+	b.line.ToNormalMode()
 	b.line.DeleteCharacterBeforeCursor(1)
 }
 func (b *BaseHandler) CtrlI(...rune) {
@@ -259,16 +269,19 @@ func (b *BaseHandler) CtrlI(...rune) {
 	b.tab()
 }
 func (b *BaseHandler) CtrlJ(...rune) {
+	b.line.ToNormalMode()
 	// ctrl_j 相当于按下 Enter
 	b.enter()
 }
 func (b *BaseHandler) CtrlK(...rune) {
+	b.line.ToNormalMode()
 	b.line.DeleteUntilEndOfLine()
 }
 func (b *BaseHandler) CtrlL(...rune) {
 	b.line.Clear()
 }
 func (b *BaseHandler) CtrlM(...rune) {
+	b.line.ToNormalMode()
 	// ctrl_m 相等于 "\r" ，我们把他当成 \n 的效果
 	b.enter()
 }
@@ -286,10 +299,12 @@ func (b *BaseHandler) CtrlR(...rune) {}
 func (b *BaseHandler) CtrlS(...rune) {}
 func (b *BaseHandler) CtrlT(...rune) {}
 func (b *BaseHandler) CtrlU(...rune) {
+	b.line.ToNormalMode()
 	b.line.DeleteFromStartOfLine()
 }
 func (b *BaseHandler) CtrlV(...rune) {}
 func (b *BaseHandler) CtrlW(...rune) {
+	b.line.ToNormalMode()
 	b.line.DeleteWordBeforeCursor()
 }
 func (b *BaseHandler) CtrlX(...rune)           {}
@@ -300,6 +315,7 @@ func (b *BaseHandler) CtrlSquareClose(...rune) {}
 func (b *BaseHandler) CtrlCircumflex(...rune)  {}
 func (b *BaseHandler) CtrlUnderscore(...rune)  {}
 func (b *BaseHandler) Backspace(...rune) {
+	b.line.ToNormalMode()
 	b.line.DeleteCharacterBeforeCursor(1)
 }
 func (b *BaseHandler) ArrowUp(...rune) {
@@ -309,18 +325,23 @@ func (b *BaseHandler) ArrowDown(...rune) {
 	b.line.AutoDown()
 }
 func (b *BaseHandler) ArrowRight(...rune) {
+	b.line.ToNormalMode()
 	b.line.CursorRight()
 }
 func (b *BaseHandler) ArrowLeft(...rune) {
+	b.line.ToNormalMode()
 	b.line.CursorLeft()
 }
 func (b *BaseHandler) Home(...rune) {
+	b.line.ToNormalMode()
 	b.line.Home()
 }
 func (b *BaseHandler) End(...rune) {
+	b.line.ToNormalMode()
 	b.line.End()
 }
 func (b *BaseHandler) DeleteAction(...rune) {
+	b.line.ToNormalMode()
 	b.line.DeleteCharacterAfterCursor(1)
 }
 func (b *BaseHandler) PageUp(...rune)       {}
@@ -348,14 +369,14 @@ func (b *BaseHandler) F19(...rune)          {}
 func (b *BaseHandler) F20(...rune)          {}
 func (b *BaseHandler) EscapeAction(...rune) {}
 func (b *BaseHandler) InsertChar(a ...rune) {
-	b.line.ExitComplete()
+	b.line.ToNormalMode()
 	b.line.InsertText(a, true)
 }
 
-func (b *BaseHandler) needsToSave(event Event) bool {
+func (b *BaseHandler) needsToSave(event keys.Event) bool {
 	// 用户输入字符时不进行保存，用户输入字符后再进行保存
 	// 这样一次可以撤销用户多次输入，而不是撤销一个个字符
-	return !(event == InsertChar && b.lastEvent == InsertChar)
+	return !(event == keys.InsertChar && b.lastEvent == keys.InsertChar)
 }
 
 func (b *BaseHandler) tab() {

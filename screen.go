@@ -2,37 +2,38 @@ package startprompt
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/mattn/go-runewidth"
 	"github.com/yetsing/startprompt/terminalcode"
 	"github.com/yetsing/startprompt/terminalcolor"
 	"github.com/yetsing/startprompt/token"
-	"strings"
 )
 
-type Grid struct {
+type Char struct {
 	char  rune
 	style terminalcolor.Style
 }
 
-func (g *Grid) output() string {
-	if g.style != nil {
-		return terminalcolor.ApplyStyle(g.style, string(g.char), true)
+func (c *Char) output() string {
+	if c.style != nil {
+		return terminalcolor.ApplyStyle(c.style, string(c.char), true)
 	} else {
-		return string(g.char)
+		return string(c.char)
 	}
 }
 
-func (g *Grid) width() int {
-	n := runewidth.StringWidth(string(g.char))
+func (c *Char) width() int {
+	n := runewidth.StringWidth(string(c.char))
 	if n < 0 {
 		n = 0
 	}
 	return n
 }
 
-func newGrid(char rune, style terminalcolor.Style) *Grid {
-	return &Grid{
-		char:  char,
+func newChar(r rune, style terminalcolor.Style) *Char {
+	return &Char{
+		char:  r,
 		style: style,
 	}
 }
@@ -42,11 +43,11 @@ type Coordinate struct {
 	Y int
 }
 
-func NewScreen(schema Schema, width int) *Screen {
+func NewScreen(schema Schema, size _Size) *Screen {
 	return &Screen{
 		schema:    schema,
-		buffer:    map[int]map[int]*Grid{},
-		width:     width,
+		buffer:    map[int]map[int]*Char{},
+		size:      size,
 		x:         0,
 		y:         0,
 		inputRow:  0,
@@ -57,9 +58,10 @@ func NewScreen(schema Schema, width int) *Screen {
 
 type Screen struct {
 	schema Schema
-	buffer map[int]map[int]*Grid
-	// 窗口宽度
-	width int
+	// {y: {x: Char}}
+	buffer map[int]map[int]*Char
+	// 窗口宽度和高度
+	size _Size
 	// 窗口中光标坐标（是一个相对于文本左上角的坐标，而不是窗口左上角）
 	x int
 	y int
@@ -70,6 +72,24 @@ type Screen struct {
 	cursorMap map[Coordinate]Coordinate
 
 	secondLinePrefixFunc func() []token.Token
+}
+
+func (s *Screen) Width() int {
+	return s.size.width
+}
+
+func (s *Screen) CurrentHeight() int {
+	if len(s.buffer) == 0 {
+		return 1
+	} else {
+		my := 0
+		for y := range s.buffer {
+			if y > my {
+				my = y
+			}
+		}
+		return my
+	}
 }
 
 func (s *Screen) Output() (string, Coordinate) {
@@ -98,11 +118,11 @@ func (s *Screen) Output() (string, Coordinate) {
 
 			c := 0
 			for c < cols {
-				var grid *Grid
+				var grid *Char
 				if _, found := lineData[c]; found {
 					grid = lineData[c]
 				} else {
-					grid = newGrid(' ', nil)
+					grid = newChar(' ', nil)
 				}
 				result = append(result, grid.output())
 				c += grid.width()
@@ -126,51 +146,47 @@ func (s *Screen) WriteTokensAtPos(x int, y int, tokens []token.Token) {
 		}
 		style := s.schema[t.Type]
 		for _, r := range t.Literal {
-			s.writeAtPos(x, y, r, style)
-			n := runewidth.RuneWidth(r)
-			if n < 0 {
-				n = 0
-			}
-			x += n
+			char := newChar(r, style)
+			s.writeAtPos(x, y, char)
+			x += char.width()
 		}
 	}
 }
 
-// WriteTokens 写入 Token 数组， isInput: 写入的是否是用户输入的内容
-func (s *Screen) WriteTokens(tokens []token.Token, isInput bool) {
+// WriteTokens 写入 Token 数组， saveInputPos: 是否保存输入位置
+func (s *Screen) WriteTokens(tokens []token.Token, saveInputPos bool) {
 	for _, t := range tokens {
 		if t.TypeIs(token.EOF) {
 			break
 		}
 		style := s.schema.StyleForToken(t.Type)
 		for _, r := range t.Literal {
-			s.WriteChar(r, style, isInput)
+			s.WriteRune(r, style, saveInputPos)
 		}
 	}
 }
 
-func (s *Screen) WriteChar(char rune, style terminalcolor.Style, isInput bool) {
-	charWidth := runewidth.RuneWidth(char)
-	if charWidth < 0 {
-		charWidth = 0
-	}
+func (s *Screen) WriteRune(r rune, style terminalcolor.Style, saveInputPos bool) {
+	char := newChar(r, style)
+	charWidth := char.width()
 
-	// 如果宽度不够放下这个字符，另起一行
-	if s.x+charWidth >= s.width {
+	//    如果宽度不够放下这个字符，另起一行
+	//    如果这里用 > 的话，输入一行的最后一个字符时，光标会在字符上面，而不是正常的在字符后面
+	if s.x+charWidth >= s.size.width {
 		s.y++
 		s.x = 0
 	}
 
-	// 记录输入位置坐标
-	if isInput {
+	//    记录输入位置坐标
+	if saveInputPos {
 		s.saveInputPos()
 	}
 
-	// 插入换行符
-	if char == '\n' {
+	//    插入换行符
+	if r == '\n' {
 		s.y++
 		s.x = 0
-		if isInput {
+		if saveInputPos {
 			s.inputRow++
 			s.inputCol = 0
 
@@ -179,24 +195,23 @@ func (s *Screen) WriteChar(char rune, style terminalcolor.Style, isInput bool) {
 			}
 		}
 	} else {
-		s.writeAtPos(s.x, s.y, char, style)
-		if isInput {
+		s.writeAtPos(s.x, s.y, char)
+		if saveInputPos {
 			s.inputCol++
 		}
 		s.x += charWidth
 	}
 }
 
-func (s *Screen) writeAtPos(x int, y int, char rune, style terminalcolor.Style) {
-	// 超出屏幕宽度的不进行写入
-	if y >= s.width {
+func (s *Screen) writeAtPos(x int, y int, char *Char) {
+	// 超出屏幕的不进行写入
+	if y >= s.size.height {
 		return
 	}
-	grid := newGrid(char, style)
 	if _, found := s.buffer[y]; !found {
-		s.buffer[y] = map[int]*Grid{}
+		s.buffer[y] = map[int]*Char{}
 	}
-	s.buffer[y][x] = grid
+	s.buffer[y][x] = char
 }
 
 func (s *Screen) saveInputPos() {

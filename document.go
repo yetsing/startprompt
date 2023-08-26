@@ -14,6 +14,7 @@ type _DocumentCache struct {
 	lineIndexes []int
 }
 
+// Document 一个不可修改的数据结构，用于保存文本和光标位置
 type Document struct {
 	text string
 	// 光标在文本中的索引

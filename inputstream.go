@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/yetsing/startprompt/keys"
 )
 
 // 解析 VT100 输入流数据
@@ -47,17 +49,17 @@ func (is *InputStream) Feed(r rune) {
 			first := runeAt(is.previous, 0)
 			// 按下 Esc 键就会收到 '\x1b' ，所以这里需要判断一下特殊处理
 			if first == '\x1b' {
-				is.callHandler(EscapeAction)
+				is.callHandler(keys.EscapeAction)
 			} else {
 				// 如果不是快捷键操作，那么就是正常的输入
-				is.callHandler(InsertChar, first)
+				is.callHandler(keys.InsertChar, first)
 			}
 			// 剩余的字符放到缓冲中，留待下次循环的时候处理
 			buffer = []rune(is.previous[utf8.RuneLen(first):])
 			buffer = append(buffer, r)
 			is.previous = ""
 		} else {
-			is.callHandler(InsertChar, r)
+			is.callHandler(keys.InsertChar, r)
 		}
 		// 如果之前有缓存字符，继续进行处理
 		if len(buffer) > 0 {
@@ -69,7 +71,7 @@ func (is *InputStream) Feed(r rune) {
 	}
 }
 
-func (is *InputStream) callHandler(event Event, a ...rune) {
+func (is *InputStream) callHandler(event keys.Event, a ...rune) {
 	is.handler.Handle(event, a...)
 }
 
@@ -92,176 +94,93 @@ func prefixMatchKeyActions(prefix string) bool {
 	return false
 }
 
-type Event int
-
-var eventStr = []string{
-	"ctrl_space", "ctrl_a", "ctrl_b", "ctrl_c", "ctrl_d", "ctrl_e", "ctrl_f", "ctrl_g", "ctrl_h", "ctrl_i", "ctrl_j",
-	"ctrl_k", "ctrl_l", "ctrl_m", "ctrl_n", "ctrl_o", "ctrl_p", "ctrl_q", "ctrl_r", "ctrl_s", "ctrl_t", "ctrl_u",
-	"ctrl_v", "ctrl_w", "ctrl_x", "ctrl_y", "ctrl_z",
-	"ctrl_backslash", "ctrl_square_close", "ctrl_circumflex", "ctrl_underscore",
-	"backspace",
-	"arrow_up", "arrow_down", "arrow_right", "arrow_left",
-	"home", "end", "delete_action",
-	"page_up", "page_down", "backtab",
-	"F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10",
-	"F11", "F12", "F13", "F14", "F15", "F16", "F17", "F18", "F19", "F20",
-	"escape",
-	"insert_char",
-}
-
-func (a Event) String() string {
-	return eventStr[a]
-}
-
-const (
-	CtrlSpace Event = iota
-	CtrlA
-	CtrlB
-	CtrlC
-	CtrlD
-	CtrlE
-	CtrlF
-	CtrlG
-	CtrlH
-	CtrlI
-	CtrlJ
-	CtrlK
-	CtrlL
-	CtrlM
-	CtrlN
-	CtrlO
-	CtrlP
-	CtrlQ
-	CtrlR
-	CtrlS
-	CtrlT
-	CtrlU
-	CtrlV
-	CtrlW
-	CtrlX
-	CtrlY
-	CtrlZ
-	CtrlBackslash
-	CtrlSquareClose
-	CtrlCircumflex
-	CtrlUnderscore
-	Backspace
-	ArrowUp
-	ArrowDown
-	ArrowRight
-	ArrowLeft
-	Home
-	End
-	DeleteAction
-	PageUp
-	PageDown
-	Backtab
-	F1
-	F2
-	F3
-	F4
-	F5
-	F6
-	F7
-	F8
-	F9
-	F10
-	F11
-	F12
-	F13
-	F14
-	F15
-	F16
-	F17
-	F18
-	F19
-	F20
-	EscapeAction
-	InsertChar
-)
-
-var keyActions = map[string]Event{
+var keyActions = map[string]keys.Event{
 	// Control-Space (Also for Ctrl-@)
-	"\x00": CtrlSpace,
-	"\x01": CtrlA,
-	"\x02": CtrlB,
-	"\x03": CtrlC,
-	"\x04": CtrlD,
-	"\x05": CtrlE,
-	"\x06": CtrlF,
-	"\x07": CtrlG,
+	"\x00": keys.CtrlSpace,
+	"\x01": keys.CtrlA,
+	"\x02": keys.CtrlB,
+	"\x03": keys.CtrlC,
+	"\x04": keys.CtrlD,
+	"\x05": keys.CtrlE,
+	"\x06": keys.CtrlF,
+	"\x07": keys.CtrlG,
 	// Control-H (8) (Identical to '\b')
-	"\x08": CtrlH,
+	"\x08": keys.CtrlH,
 	// Control-I (9) (Identical to '\t')
-	"\x09": CtrlI,
+	"\x09": keys.CtrlI,
 	// Control-J (10) (Identical to '\n')
-	"\x0a": CtrlJ,
-	"\x0b": CtrlK,
+	"\x0a": keys.CtrlJ,
+	"\x0b": keys.CtrlK,
 	// Control-L (clear; form feed)
-	"\x0c": CtrlL,
+	"\x0c": keys.CtrlL,
 	// Control-M (13) (Identical to '\r')
-	"\x0d": CtrlM,
-	"\x0e": CtrlN,
-	"\x0f": CtrlO,
-	"\x10": CtrlP,
-	"\x11": CtrlQ,
-	"\x12": CtrlR,
-	"\x13": CtrlS,
-	"\x14": CtrlT,
-	"\x15": CtrlU,
-	"\x16": CtrlV,
-	"\x17": CtrlW,
-	"\x18": CtrlX,
-	"\x19": CtrlY,
-	"\x1a": CtrlZ,
-	// Both Control-\ and Ctrl-|
-	"\x1c": CtrlBackslash,
-	// Control-]
-	"\x1d": CtrlSquareClose,
-	// Control-^
-	"\x1e": CtrlCircumflex,
-	// Control-underscore (Also for Ctrl-hypen.)
-	"\x1f": CtrlUnderscore,
-	// (127) Backspace
-	"\x7f":    Backspace,
-	"\x1b[A":  ArrowUp,
-	"\x1b[B":  ArrowDown,
-	"\x1b[C":  ArrowRight,
-	"\x1b[D":  ArrowLeft,
-	"\x1b[H":  Home,
-	"\x1b[F":  End,
-	"\x1b[3~": DeleteAction,
-	// tmux
-	"\x1b[1~": Home,
-	// tmux
-	"\x1b[4~": End,
-	"\x1b[5~": PageUp,
-	"\x1b[6~": PageDown,
-	// xrvt
-	"\x1b[7~": Home,
-	// xrvt
-	"\x1b[8~": End,
-	// shift + tab
-	"\x1b[Z": Backtab,
+	"\x0d": keys.CtrlM,
+	"\x0e": keys.CtrlN,
+	"\x0f": keys.CtrlO,
+	"\x10": keys.CtrlP,
+	"\x11": keys.CtrlQ,
+	"\x12": keys.CtrlR,
+	"\x13": keys.CtrlS,
+	"\x14": keys.CtrlT,
+	"\x15": keys.CtrlU,
+	"\x16": keys.CtrlV,
+	"\x17": keys.CtrlW,
+	"\x18": keys.CtrlX,
+	"\x19": keys.CtrlY,
+	"\x1a": keys.CtrlZ,
 
-	"\x1bOP":   F1,
-	"\x1bOQ":   F2,
-	"\x1bOR":   F3,
-	"\x1bOS":   F4,
-	"\x1b[15~": F5,
-	"\x1b[17~": F6,
-	"\x1b[18~": F7,
-	"\x1b[19~": F8,
-	"\x1b[20~": F9,
-	"\x1b[21~": F10,
-	"\x1b[23~": F11,
-	"\x1b[24~": F12,
-	"\x1b[25~": F13,
-	"\x1b[26~": F14,
-	"\x1b[28~": F15,
-	"\x1b[29~": F16,
-	"\x1b[31~": F17,
-	"\x1b[32~": F18,
-	"\x1b[33~": F19,
-	"\x1b[34~": F20,
+	// Both Control-\ and Ctrl-|
+	"\x1c": keys.CtrlBackslash,
+	// Control-]
+	"\x1d": keys.CtrlSquareClose,
+	// Control-^
+	"\x1e": keys.CtrlCircumflex,
+	// Control-underscore (Also for Ctrl-hypen.)
+	"\x1f": keys.CtrlUnderscore,
+	// (127) Backspace
+	"\x7f":    keys.Backspace,
+	"\x1b[A":  keys.ArrowUp,
+	"\x1b[B":  keys.ArrowDown,
+	"\x1b[C":  keys.ArrowRight,
+	"\x1b[D":  keys.ArrowLeft,
+	"\x1b[H":  keys.Home,
+	"\x1bOH":  keys.Home,
+	"\x1b[F":  keys.End,
+	"\x1bOF":  keys.End,
+	"\x1b[3~": keys.DeleteAction,
+	// xterm, gnome-terminal.
+	"\x1b[3;2~": keys.ShiftDelete,
+	// tmux
+	"\x1b[1~": keys.Home,
+	// tmux
+	"\x1b[4~": keys.End,
+	"\x1b[5~": keys.PageUp,
+	"\x1b[6~": keys.PageDown,
+	// xrvt
+	"\x1b[7~": keys.Home,
+	// xrvt
+	"\x1b[8~": keys.End,
+	// shift + tab
+	"\x1b[Z": keys.Backtab,
+
+	"\x1bOP":   keys.F1,
+	"\x1bOQ":   keys.F2,
+	"\x1bOR":   keys.F3,
+	"\x1bOS":   keys.F4,
+	"\x1b[15~": keys.F5,
+	"\x1b[17~": keys.F6,
+	"\x1b[18~": keys.F7,
+	"\x1b[19~": keys.F8,
+	"\x1b[20~": keys.F9,
+	"\x1b[21~": keys.F10,
+	"\x1b[23~": keys.F11,
+	"\x1b[24~": keys.F12,
+	"\x1b[25~": keys.F13,
+	"\x1b[26~": keys.F14,
+	"\x1b[28~": keys.F15,
+	"\x1b[29~": keys.F16,
+	"\x1b[31~": keys.F17,
+	"\x1b[32~": keys.F18,
+	"\x1b[33~": keys.F19,
+	"\x1b[34~": keys.F20,
 }

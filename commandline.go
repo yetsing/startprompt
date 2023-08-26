@@ -2,12 +2,13 @@ package startprompt
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
-	"github.com/yetsing/startprompt/terminalcode"
 	"golang.org/x/term"
 )
 
@@ -120,20 +121,84 @@ type CommandLine struct {
 
 	redrawChannel chan rune
 	readChannel   chan rune
+
+	isReadingInput bool
+
+	exitFlag   bool
+	abortFlag  bool
+	returnCode Code
+}
+
+func (c *CommandLine) setup() {
+	if c.option.EnableDebug {
+		enableDebugLog()
+	} else {
+		disableDebugLog()
+	}
+	if c.option.EnableConcurrency {
+		//    新开协程读取用户输入
+		go func() {
+			for {
+				r, _, err := c.reader.ReadRune()
+				if err != nil {
+					c.readError = err
+					c.readChannel <- 0
+					break
+				}
+				c.readChannel <- r
+			}
+		}()
+	}
+	c.reset()
+}
+
+func NewCommandLine(option *CommandLineOption) (*CommandLine, error) {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return nil, fmt.Errorf("not in a terminal")
+	}
+	if !term.IsTerminal(int(os.Stdout.Fd())) {
+		return nil, fmt.Errorf("not in a terminal")
+	}
+
+	actualOption := defaultCommandLineOption.copy()
+	if option != nil {
+		actualOption.update(option)
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+	writer := bufio.NewWriter(os.Stdout)
+	c := &CommandLine{
+		reader: reader,
+		writer: writer,
+		option: actualOption,
+
+		redrawChannel: make(chan rune, 1024),
+		readChannel:   make(chan rune),
+	}
+	c.setup()
+	return c, nil
+}
+
+func (c *CommandLine) reset() {
+	c.exitFlag = false
+	c.abortFlag = false
+	c.returnCode = nil
 }
 
 // RequestRedraw 请求重绘（线程安全）
 func (c *CommandLine) RequestRedraw() {
 	if !c.option.EnableConcurrency {
-		panic("not enable concurrency")
+		panic("Must enable concurrency")
 	}
-	c.redrawChannel <- 'x'
+	if c.redrawChannel != nil {
+		c.redrawChannel <- 'x'
+	}
 }
 
 // RunInExecutor 运行后台任务
 func (c *CommandLine) RunInExecutor(callback func()) {
 	if !c.option.EnableConcurrency {
-		panic("not enable concurrency")
+		panic("Must enable concurrency")
 	}
 
 	go callback()
@@ -169,10 +234,36 @@ func (c *CommandLine) pollEvent() (rune, PollEvent) {
 }
 
 func (c *CommandLine) ReadInput() (string, error) {
-	// 开启 terminal raw mode
-	// 这种模式下会拿到用户原始的输入，比如输入 Ctrl-c 时，不会中断当前程序，而是拿到 Ctrl-c 的表示
-	// 不会自动展示用户输入
-	// 更多说明解释参考：https://viewsourcecode.org/snaptoken/kilo/02.enteringRawMode.html
+	if c.isReadingInput {
+		return "", fmt.Errorf("already reading input")
+	}
+	c.isReadingInput = true
+	c.redrawChannel = make(chan rune, 1024)
+
+	render := newRender(c.option.Schema)
+	line := newLine(
+		c.option.CodeFactory,
+		c.option.PromptFactory,
+		c.option.History,
+		newLineCallbacks(c, render),
+		c.option.AutoIndent,
+	)
+	handler := NewBaseHandler(line)
+	is := NewInputStream(handler)
+	render.render(line.GetRenderContext(), false, false)
+
+	resetFunc := func() {
+		line.reset()
+		c.reset()
+	}
+
+	resetFunc()
+	c.OnReadInputStart()
+
+	//    开启 terminal raw mode
+	//    这种模式下会拿到用户原始的输入，比如输入 Ctrl-c 时，不会中断当前程序，而是拿到 Ctrl-c 的表示
+	//    不会自动展示用户输入
+	//    更多说明解释参考：https://viewsourcecode.org/snaptoken/kilo/02.enteringRawMode.html
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
 		return "", err
@@ -184,136 +275,119 @@ func (c *CommandLine) ReadInput() (string, error) {
 		}
 	}()
 
-	render := newRender(c.option.Schema)
-	line := newLine(c.option.CodeFactory, c.option.PromptFactory, c.option.History, c.option.AutoIndent)
-	handler := NewBaseHandler(line)
-	is := NewInputStream(handler)
-	render.render(line.GetRenderContext())
-
 	var r rune
 	reader := c.reader
 	var inputText string
 	for {
-		// 用户有多个任务运行，不能一直阻塞在用户输入上
+		//    读取用户输入
 		if c.option.EnableConcurrency {
+			//    用户有多个任务运行，不能一直阻塞在用户输入上
 			var pollEvent PollEvent
 			r, pollEvent = c.pollEvent()
 			switch pollEvent {
-			case PollEventRedraw:
-				render.render(line.GetRenderContext())
-				continue
+			case PollEventInput:
+				if c.readError != nil {
+					return "", err
+				}
+				DebugLog("read rune: %d", r)
+				//    识别用户输入，触发事件
+				is.Feed(r)
 			case PollEventTimeout:
+				//    读取用户输入超时
 				c.OnInputTimeout(line.CreateCodeObj())
 				continue
-			}
-			if c.readError != nil {
-				return "", err
 			}
 		} else {
 			r, _, err = reader.ReadRune()
 			if err != nil {
 				return "", err
 			}
+			DebugLog("read rune: %d", r)
+			//    识别用户输入，触发事件
+			is.Feed(r)
 		}
-		DebugLog("read rune: %d", r)
-		// 识别用户输入，触发事件
-		is.Feed(r)
-		//c.draw(line)
-		if line.exit {
-			// 一般是用户按了 Ctrl-D
-			if c.option.OnExit != AbortActionIgnore {
-				render.render(line.GetRenderContext())
-			}
 
+		//    处理特别的输入事件结果
+		if c.exitFlag {
+			//    一般是用户按了 Ctrl-D
 			switch c.option.OnExit {
 			case AbortActionReturnError:
+				render.render(line.GetRenderContext(), true, false)
 				return "", ExitError
 			case AbortActionReturnNone:
+				render.render(line.GetRenderContext(), true, false)
 				return "", nil
 			case AbortActionRetry:
-				line.reset()
+				resetFunc()
 			case AbortActionIgnore:
 
 			}
-		} else if line.abort {
-			// 一般是用户按了 Ctrl-C
-			if c.option.OnAbort != AbortActionIgnore {
-				render.render(line.GetRenderContext())
-			}
-
+		}
+		if c.abortFlag {
+			//    一般是用户按了 Ctrl-C
 			switch c.option.OnAbort {
 			case AbortActionReturnError:
+				render.render(line.GetRenderContext(), true, false)
 				return "", AbortError
 			case AbortActionReturnNone:
+				render.render(line.GetRenderContext(), true, false)
 				return "", nil
 			case AbortActionRetry:
-				line.reset()
+				resetFunc()
 			case AbortActionIgnore:
 
 			}
-		} else if line.accept {
-			// 一般是用户按了 Enter
-			render.render(line.GetRenderContext())
+		}
+		if c.returnCode != nil {
+			//    一般是用户按了 Enter
+			render.render(line.GetRenderContext(), false, true)
 			inputText = line.text()
 			break
 		}
-		switch line.renderType {
-		case LineRenderClear:
-			// 一般是用户按了 Ctrl-L
-			render.clear()
-		case LineRenderListCompletion:
-			// 一般是用户按了两次 tab （实际上没有支持这个效果）
-			render.renderCompletions(line.GetRenderCompletions())
-		}
-		// 重新画出用户输入
-		render.render(line.GetRenderContext())
-		line.ResetRenderType()
+
+		//    画出用户输入
+		render.render(line.GetRenderContext(), false, false)
 	}
+	c.redrawChannel = nil
+	c.OnReadInputEnd()
+	c.isReadingInput = false
 	DebugLog("return input: <%s>", inputText)
 	return inputText, nil
 }
 
-func (c *CommandLine) draw(line *Line) {
-	renderCtx := line.GetRenderContext()
-	// 为了防止在重画屏幕的过程中，光标出现闪烁，我们先隐藏光标，最后在显示光标
-	// 参考：https://viewsourcecode.org/snaptoken/kilo/03.rawInputAndOutput.html#hide-the-cursor-when-repainting
-	// 隐藏光标
-	c.writeString(terminalcode.HideCursor)
-	// 移动光标到行首
-	c.writeString(terminalcode.CarriageReturn)
-	// 删除当行到屏幕下方
-	c.writeString(terminalcode.EraseDown)
-
-	screen := NewScreen(defaultSchema, 0)
-	screen.WriteTokens(renderCtx.code.GetTokens(), true)
-	screen.saveInputPos()
-	result, lastCoordinate := screen.Output()
-	c.writeString(result)
-
-	// 用户输入完毕或者放弃输入
-	if renderCtx.accept || renderCtx.abort {
-		// 另起一行
-		c.writeString(terminalcode.CRLF)
-	} else {
-		doc := line.Document()
-		// 移动光标
-		cursorCoordinate := screen.getCursorCoordinate(doc.CursorPositionRow(), doc.CursorPositionCol())
-		lastX := lastCoordinate.X
-		if lastCoordinate.Y > cursorCoordinate.Y {
-			c.writeString(terminalcode.CursorUp(lastCoordinate.Y - cursorCoordinate.Y))
-		}
-		if lastX > cursorCoordinate.X {
-			c.writeString(terminalcode.CursorBackward(lastX - cursorCoordinate.X))
-		} else if lastX < cursorCoordinate.X {
-			c.writeString(terminalcode.CursorForward(cursorCoordinate.X - lastX))
+func (c *CommandLine) getCursorPosition() (int, int) {
+	c.Print("\x1b[6n")
+	var buf [32]byte
+	var i int
+	// 回复格式为 \x1b[A;BR
+	// A 和 B 就是光标的行和列
+	// todo 这里读取光标位置实际使用发现有一个问题
+	// 如果用户的输入没有及时处理（比如一直按着 A），下面的循环就会读到剩余的用户输入
+	// 而不是简单的 \x1b[A;BR 转义序列
+	for i = 0; i < 32; i++ {
+		c, err := c.reader.ReadByte()
+		ensureOk(err)
+		if c == 'R' {
+			break
+		} else {
+			buf[i] = c
 		}
 	}
-	// 显示光标
-	c.writeString(terminalcode.DisplayCursor)
-	c.flush()
+	if buf[0] != '\x1b' || buf[1] != '[' {
+		panic(fmt.Sprintf("invalid cursor position report escape: %v", buf[:i]))
+	}
+	sepIndex := bytes.IndexByte(buf[:], ';')
+	if sepIndex == -1 {
+		panic(fmt.Sprintf("invalid cursor position report separator: %v", buf[:i]))
+	}
+	row, err := strconv.ParseInt(string(buf[2:sepIndex]), 10, 32)
+	ensureOk(err)
+	col, err := strconv.ParseInt(string(buf[sepIndex+1:i]), 10, 32)
+	ensureOk(err)
+	return int(row), int(col)
 }
 
-// 写入字符串到输出缓冲中
+// writeString 写入字符串到输出缓冲中
 func (c *CommandLine) writeString(s string) {
 	_, err := c.writer.WriteString(s)
 	ensureOk(err)
@@ -336,11 +410,6 @@ func (c *CommandLine) Printf(format string, a ...any) {
 	c.flush()
 }
 
-type Position struct {
-	row int
-	col int
-}
-
 func (c *CommandLine) SetOnAbort(action AbortAction) {
 	c.option.OnAbort = action
 }
@@ -349,50 +418,39 @@ func (c *CommandLine) SetOnExit(action AbortAction) {
 	c.option.OnExit = action
 }
 
-func (c *CommandLine) setup() {
-	if c.option.EnableDebug {
-		enableDebugLog()
-	} else {
-		disableDebugLog()
-	}
-	if c.option.EnableConcurrency {
-		// 新开协程读取用户输入
-		go func() {
-			for {
-				r, _, err := c.reader.ReadRune()
-				if err != nil {
-					c.readError = err
-					break
-				}
-				c.readChannel <- r
-			}
-		}()
-	}
+func (c *CommandLine) SetExit() {
+	c.exitFlag = true
 }
 
-func NewCommandLine(option *CommandLineOption) (*CommandLine, error) {
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		return nil, fmt.Errorf("not in a terminal")
-	}
-	if !term.IsTerminal(int(os.Stdout.Fd())) {
-		return nil, fmt.Errorf("not in a terminal")
-	}
+func (c *CommandLine) SetAbort() {
+	c.abortFlag = true
+}
 
-	actualOption := defaultCommandLineOption.copy()
-	if option != nil {
-		actualOption.update(option)
-	}
+func (c *CommandLine) SetReturnValue(code Code) {
+	c.returnCode = code
+}
 
-	reader := bufio.NewReader(os.Stdin)
-	writer := bufio.NewWriter(os.Stdout)
-	c := &CommandLine{
-		reader: reader,
-		writer: writer,
-		option: actualOption,
+type LineCallbacks struct {
+	commandLine *CommandLine
+	render      *rRenderer
+}
 
-		redrawChannel: make(chan rune, 1024),
-		readChannel:   make(chan rune),
-	}
-	c.setup()
-	return c, nil
+func newLineCallbacks(commandLine *CommandLine, render *rRenderer) *LineCallbacks {
+	return &LineCallbacks{commandLine: commandLine, render: render}
+}
+
+func (l *LineCallbacks) ClearScreen() {
+	l.render.clear()
+}
+
+func (l *LineCallbacks) Exit() {
+	l.commandLine.SetExit()
+}
+
+func (l *LineCallbacks) Abort() {
+	l.commandLine.SetAbort()
+}
+
+func (l *LineCallbacks) ReturnInput(code Code) {
+	l.commandLine.SetReturnValue(code)
 }

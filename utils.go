@@ -2,11 +2,32 @@ package startprompt
 
 import (
 	"bytes"
-	"github.com/mattn/go-runewidth"
-	"golang.org/x/term"
 	"strings"
 	"unicode"
+
+	"github.com/mattn/go-runewidth"
+	"golang.org/x/term"
 )
+
+func maxInt(a ...int) int {
+	m := a[0]
+	for _, n := range a {
+		if n > m {
+			m = n
+		}
+	}
+	return m
+}
+
+func minInt(a ...int) int {
+	m := a[0]
+	for _, n := range a {
+		if n < m {
+			m = n
+		}
+	}
+	return m
+}
 
 // 获取终端窗口大小，参考 https://stackoverflow.com/a/67087586
 func getSize(fd int) (int, int) {
