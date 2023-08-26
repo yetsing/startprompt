@@ -15,6 +15,28 @@ type Callbacks interface {
 	ReturnInput(code Code)
 }
 
+type NoopCallbacks struct{}
+
+func NewNoopCallbacks() Callbacks {
+	return &NoopCallbacks{}
+}
+
+func (n *NoopCallbacks) ClearScreen() {
+
+}
+
+func (n *NoopCallbacks) Exit() {
+
+}
+
+func (n *NoopCallbacks) Abort() {
+
+}
+
+func (n *NoopCallbacks) ReturnInput(_ Code) {
+
+}
+
 type cCompletionState struct {
 	// 补全开始时的 document
 	originalDocument *Document

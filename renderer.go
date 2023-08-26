@@ -156,12 +156,12 @@ func (r *rRenderer) getNewScreen(renderContext *RenderContext) *Screen {
 	screen := NewScreen(r.schema, r.getSize())
 
 	//    写入提示符
-	prompts := renderContext.prompt.GetPrompt()
+	prompt := renderContext.prompt
+	prompts := prompt.GetPrompt()
 	screen.WriteTokens(prompts, false)
-
 	//    设置后续行前缀函数
 	screen.setSecondLinePrefix(func() []token.Token {
-		return renderContext.prompt.GetSecondLinePrefix()
+		return prompt.GetSecondLinePrefix()
 	})
 
 	//    写入分词后的用户输入
