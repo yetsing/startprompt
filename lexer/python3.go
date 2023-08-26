@@ -1,11 +1,17 @@
 package lexer
 
 import (
-	"github.com/yetsing/startprompt/token"
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/yetsing/startprompt/token"
 )
+
+/*
+这个分词器跟在编译器或者解释器里面的有点不一样
+因为用户的输入在不断变化，他需要容忍错误，尽可能地解析字符
+*/
 
 func isdigit(r rune) bool {
 	return r >= '0' && r <= '9'
@@ -26,7 +32,8 @@ func py3GenericInteger(buffer *CodeBuffer, prefix string, isLegalDigit func(rune
 			if isLegalDigit(buffer.CurrentChar()) {
 				buffer.Advance(1)
 			} else {
-				return ""
+				buffer.Unread(1)
+				break
 			}
 		} else if isLegalDigit(buffer.CurrentChar()) {
 			buffer.Advance(1)
@@ -38,19 +45,6 @@ func py3GenericInteger(buffer *CodeBuffer, prefix string, isLegalDigit func(rune
 	s := buffer.Slice(start, end)
 	if len(prefix) > 0 && strings.ToLower(s) == strings.ToLower(prefix) {
 		return ""
-	}
-	return s
-}
-
-func py3decinteger(buffer *CodeBuffer) string {
-	s := py3GenericInteger(buffer, "", isdigit)
-	if strings.HasPrefix(s, "0") {
-		// 0 开头的整数，必须都是 "_" 或者 "0"
-		for _, r := range s {
-			if r != '_' && r != '0' {
-				return ""
-			}
-		}
 	}
 	return s
 }
@@ -76,30 +70,7 @@ func py3hexinteger(buffer *CodeBuffer) string {
 	return py3GenericInteger(buffer, "0x", ishexdigit)
 }
 
-/*
-Py3ReadInteger 读取整数，如果不存在有效的整数，返回空字符串
-
-整数定义，参考 Python
-https://docs.python.org/3/reference/lexical_analysis.html#integer-literals
-
-	integer      ::=  decinteger | bininteger | octinteger | hexinteger
-	decinteger   ::=  nonzerodigit (["_"] digit)* | "0"+ (["_"] "0")*
-	bininteger   ::=  "0" ("b" | "B") (["_"] bindigit)+
-	octinteger   ::=  "0" ("o" | "O") (["_"] octdigit)+
-	hexinteger   ::=  "0" ("x" | "X") (["_"] hexdigit)+
-	nonzerodigit ::=  "1"..."9"
-	digit        ::=  "0"..."9"
-	bindigit     ::=  "0" | "1"
-	octdigit     ::=  "0"..."7"
-	hexdigit     ::=  digit | "a"..."f" | "A"..."F"
-
-例子
-
-	7     2147483647                        0o177    0b100110111
-	3     79228162514264337593543950336     0o377    0xdeadbeef
-	0000  100_000_000_000                   0b_1110_0101
-*/
-func Py3ReadInteger(buffer *CodeBuffer) string {
+func Py3ReadNumber(buffer *CodeBuffer) string {
 	prefix := buffer.PeekString(2)
 	switch prefix {
 	case "0b", "0B":
@@ -108,142 +79,65 @@ func Py3ReadInteger(buffer *CodeBuffer) string {
 		return py3octinteger(buffer)
 	case "0x", "0X":
 		return py3hexinteger(buffer)
-	default:
-		return py3decinteger(buffer)
 	}
-}
-
-/*
-Py3ReadFloat 读取浮点数，如果不存在有效的浮点数，返回空字符串
-
-浮点数定义，参考 Python
-https://docs.python.org/3/reference/lexical_analysis.html#floating-point-literals
-
-	floatnumber   ::=  pointfloat | exponentfloat
-	pointfloat    ::=  [digitpart] fraction | digitpart "."
-	exponentfloat ::=  (digitpart | pointfloat) exponent
-	digitpart     ::=  digit (["_"] digit)*
-	fraction      ::=  "." digitpart
-	exponent      ::=  ("e" | "E") ["+" | "-"] digitpart
-
-例子
-
-	3.14    10.    .001    1e100    3.14e-10    0e0    3.141593
-*/
-func Py3ReadFloat(buffer *CodeBuffer) string {
-	// 将上面规则的各种情况都列举出来，并且都转成 digitpart 和 exponent，有下面这些
-	//    "." digitpart
-	//    "." digitpart exponent
-	//    digitpart "."
-	//    digitpart "." exponent
-	//    digitpart "." digitpart
-	//    digitpart "." digitpart exponent
-	//    digitpart exponent
-
-	var end int
-	start := buffer.GetIndex()
-
-	if buffer.CurrentChar() == '.' {
-		buffer.Advance(1)
-		if !isdigit(buffer.CurrentChar()) {
-			return ""
-		}
-		//    "." digitpart 或者 "." digitpart exponent
-		for isdigit(buffer.CurrentChar()) {
+	//    十进制整数或者浮点数
+	index := buffer.GetIndex()
+	hasDot := false
+	hasExp := false
+	for buffer.HasChar() {
+		ch := buffer.CurrentChar()
+		if isdigit(ch) {
 			buffer.Advance(1)
+			continue
 		}
-		if buffer.CurrentChar() == 'e' || buffer.CurrentChar() == 'E' {
-			//    "." digitpart exponent
-			buffer.Advance(1)
-			if buffer.CurrentChar() == '+' || buffer.CurrentChar() == '-' {
-				buffer.Advance(1)
-			}
-			if !isdigit(buffer.CurrentChar()) {
-				return ""
-			}
-			for isdigit(buffer.CurrentChar()) {
-				buffer.Advance(1)
-			}
-		}
-		end = buffer.GetIndex()
-		return buffer.Slice(start, end)
-	} else if isdigit(buffer.CurrentChar()) {
-		for isdigit(buffer.CurrentChar()) {
-			buffer.Advance(1)
-		}
-		switch buffer.CurrentChar() {
+
+		continueLoop := true
+		switch ch {
 		case '.':
+			if hasDot {
+				continueLoop = false
+				break
+			}
+			hasDot = true
+			//    存在 10. 这样的写法，所以后面的字符不用判断了
 			buffer.Advance(1)
-			switch buffer.CurrentChar() {
-			case 'e', 'E':
-				//    digitpart "." exponent
+		case '_':
+			if isdigit(buffer.Peek()) {
 				buffer.Advance(1)
-				if buffer.CurrentChar() == '+' || buffer.CurrentChar() == '-' {
-					buffer.Advance(1)
-				}
-				if !isdigit(buffer.CurrentChar()) {
-					return ""
-				}
-				for isdigit(buffer.CurrentChar()) {
-					buffer.Advance(1)
-				}
-				end = buffer.GetIndex()
-				return buffer.Slice(start, end)
-			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				//    digitpart "." digitpart 或者 digitpart "." digitpart exponent
-				for isdigit(buffer.CurrentChar()) {
-					buffer.Advance(1)
-				}
-				if buffer.CurrentChar() == 'e' || buffer.CurrentChar() == 'E' {
-					//    digitpart "." digitpart exponent
-					buffer.Advance(1)
-					if buffer.CurrentChar() == '+' || buffer.CurrentChar() == '-' {
-						buffer.Advance(1)
-					}
-					if !isdigit(buffer.CurrentChar()) {
-						return ""
-					}
-					for isdigit(buffer.CurrentChar()) {
-						buffer.Advance(1)
-					}
-				}
-				end = buffer.GetIndex()
-				return buffer.Slice(start, end)
-			default:
-				//    digitpart "."
-				return buffer.Slice(start, buffer.GetIndex())
+			} else {
+				continueLoop = false
 			}
 		case 'e', 'E':
-			//     digitpart exponent
-			buffer.Advance(1)
-			if buffer.CurrentChar() == '+' || buffer.CurrentChar() == '-' {
+			if hasExp {
+				continueLoop = false
+				break
+			}
+			hasExp = true
+			peek := buffer.Peek()
+			if isdigit(peek) {
 				buffer.Advance(1)
+			} else if peek == '+' || peek == '-' {
+				//    看下一个是不是数字
+				if isdigit(buffer.PeekN(2)) {
+					//    跳过 E+ E- e+ e- 等两个字符
+					buffer.Advance(2)
+				} else {
+					continueLoop = false
+				}
+			} else {
+				continueLoop = false
+				break
 			}
-			if !isdigit(buffer.CurrentChar()) {
-				return ""
-			}
-			for isdigit(buffer.CurrentChar()) {
-				buffer.Advance(1)
-			}
-			end = buffer.GetIndex()
-			return buffer.Slice(start, end)
 		default:
-			return ""
+			continueLoop = false
 		}
-	}
-	return ""
-}
+		if continueLoop {
+			continue
+		}
 
-func Py3ReadNumber(buffer *CodeBuffer) string {
-	var result string
-	index := buffer.GetIndex()
-	result = Py3ReadFloat(buffer)
-	if len(result) != 0 {
-		return result
+		break
 	}
-	// 无法解析出浮点数，我们恢复最开始的索引，解析整数
-	buffer.SetIndex(index)
-	return Py3ReadInteger(buffer)
+	return buffer.Slice(index, buffer.GetIndex())
 }
 
 type Py3Lexer struct {

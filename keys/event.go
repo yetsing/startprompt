@@ -77,6 +77,7 @@ func (a Event) String() string {
 	return eventStr[a]
 }
 
+//goland:noinspection GoUnusedConst
 const (
 	CtrlA Event = iota
 	CtrlB

@@ -3,14 +3,15 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/yetsing/startprompt"
-	"github.com/yetsing/startprompt/lexer"
-	"github.com/yetsing/startprompt/token"
 	"io"
 	"os"
 	"path"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/yetsing/startprompt"
+	"github.com/yetsing/startprompt/lexer"
+	"github.com/yetsing/startprompt/token"
 )
 
 /*
@@ -89,6 +90,7 @@ func check(filepath string) {
 		panic(err)
 	}
 	fmt.Printf("test: %q\n filepath: %q\n tokens: %d\n", filepath, info.Filepath, len(info.Tokens))
+	//    这个文件里面有个希伯来文的变量名 ，导致跟标准库的解析有差异，没想到解决方法
 	if strings.HasSuffix(info.Filepath, "pyparsing/unicode.py") {
 		return
 	}

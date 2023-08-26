@@ -2,8 +2,9 @@
 package lexer
 
 import (
-	"github.com/yetsing/startprompt/token"
 	"unicode"
+
+	"github.com/yetsing/startprompt/token"
 )
 
 type GetTokensFunc func(input string) []token.Token
@@ -42,8 +43,12 @@ func (c *CodeBuffer) Read() rune {
 }
 
 func (c *CodeBuffer) Peek() rune {
-	if c.index+1 < c.length {
-		return c.runes[c.index+1]
+	return c.PeekN(1)
+}
+
+func (c *CodeBuffer) PeekN(n int) rune {
+	if c.index+n < c.length {
+		return c.runes[c.index+n]
 	}
 	return 0
 }
@@ -72,6 +77,13 @@ func (c *CodeBuffer) Advance(step int) {
 	c.index += step
 	if c.index >= len(c.runes) {
 		c.index = len(c.runes)
+	}
+}
+
+func (c *CodeBuffer) Unread(step int) {
+	c.index -= step
+	if c.index < 0 {
+		c.index = 0
 	}
 }
 
