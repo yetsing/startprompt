@@ -27,6 +27,8 @@ type Code interface {
 	// 返回 true 时，会插入换行符
 	// 返回 false 时，表示用户本次输入完成， CommandLine.ReadInput 则会返回用户输入
 	ContinueInput() bool
+	// CompleteAfterInsertText 返回 true 表示每次插入文本我们都获取一次补全
+	CompleteAfterInsertText() bool
 }
 
 type _BaseCode struct {
@@ -55,5 +57,9 @@ func (c *_BaseCode) GetCompletions() []*Completion {
 }
 
 func (c *_BaseCode) ContinueInput() bool {
+	return false
+}
+
+func (c *_BaseCode) CompleteAfterInsertText() bool {
 	return false
 }

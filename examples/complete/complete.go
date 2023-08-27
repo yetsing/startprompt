@@ -83,8 +83,9 @@ func (c *AnimalCode) GetCompletions() []*startprompt.Completion {
 	for _, animal := range c.animals {
 		if strings.HasPrefix(animal, word) {
 			cp := &startprompt.Completion{
-				Display: animal,
-				Suffix:  animal[len(word):],
+				Display:     animal,
+				Suffix:      animal[len(word):],
+				DisplayMeta: "animal",
 			}
 			completions = append(completions, cp)
 		}
@@ -96,9 +97,15 @@ func (c *AnimalCode) ContinueInput() bool {
 	return false
 }
 
+func (c *AnimalCode) CompleteAfterInsertText() bool {
+	startprompt.DebugLog("CharBeforeCursor: %s", c.document.CharBeforeCursor())
+	return !startprompt.IsSpace(c.document.CharBeforeCursor())
+}
+
 func main() {
 	c, err := startprompt.NewCommandLine(&startprompt.CommandLineOption{
 		CodeFactory: newCompleteCode,
+		EnableDebug: true,
 	})
 	if err != nil {
 		fmt.Printf("failed to startprompt.NewCommandLine: %v\n", err)

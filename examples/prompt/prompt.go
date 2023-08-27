@@ -86,6 +86,10 @@ func (c *MultilineCode) ContinueInput() bool {
 	return len(text) > 0 && !strings.HasSuffix(c.document.Text(), "\n")
 }
 
+func (c *MultilineCode) CompleteAfterInsertText() bool {
+	return false
+}
+
 func main() {
 	c, err := startprompt.NewCommandLine(&startprompt.CommandLineOption{
 		CodeFactory:   newMultilineCode,

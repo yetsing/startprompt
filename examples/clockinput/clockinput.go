@@ -31,8 +31,7 @@ func NewClockPrompt(_ *startprompt.Line, _ startprompt.Code) startprompt.Prompt 
 
 func main() {
 	c, err := startprompt.NewCommandLine(&startprompt.CommandLineOption{
-		PromptFactory:     NewClockPrompt,
-		EnableConcurrency: true,
+		PromptFactory: NewClockPrompt,
 	})
 	if err != nil {
 		fmt.Printf("failed to startprompt.NewCommandLine: %v\n", err)

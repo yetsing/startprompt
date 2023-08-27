@@ -466,7 +466,7 @@ func (l *Line) Complete() bool {
 	result := l.CreateCode().Complete()
 	if len(result) > 0 {
 		runes := []rune(result)
-		l.InsertText(runes, true)
+		l.insertText(runes, true)
 		return true
 	} else {
 		return false
@@ -520,8 +520,6 @@ func (l *Line) StartComplete(gotoFirst bool) {
 
 	if len(currentCompletions) > 0 {
 		l.completeState = newCompletionState(l.Document(), currentCompletions)
-		text := l.completeState.currentCompletionText()
-		l.InsertText([]rune(text), true)
 		l.mode = linemode.Complete
 		if gotoFirst {
 			l.gotoCompletion(0)
@@ -538,15 +536,13 @@ func (l *Line) AcceptComplete() {
 	l.completeState = nil
 }
 
-// ExitComplete 退出补全
-func (l *Line) ExitComplete() {
-	DebugLog("ExitComplete")
-	if !l.mode.Is(linemode.Complete) {
-		return
+// CancelComplete 取消补全
+func (l *Line) CancelComplete() {
+	if l.mode.Is(linemode.Complete) {
+		l.gotoCompletion(-1)
+		l.mode = linemode.Normal
+		l.completeState = nil
 	}
-	l.gotoCompletion(-1)
-	l.mode = linemode.Normal
-	l.completeState = nil
 }
 
 // 选择指定位置的补全
@@ -563,7 +559,7 @@ func (l *Line) gotoCompletion(index int) {
 
 	// 设置新的补全
 	l.completeState.completeIndex = index
-	l.InsertText([]rune(l.completeState.currentCompletionText()), true)
+	l.insertText([]rune(l.completeState.currentCompletionText()), true)
 
 	l.mode = linemode.Complete
 }
@@ -607,9 +603,9 @@ func (l *Line) HistoryBackward() {
 
 func (l *Line) Newline() {
 	spaces := l.Document().LeadingWhitespaceInCurrentLine()
-	l.InsertText([]rune{'\n'}, true)
+	l.insertText([]rune{'\n'}, true)
 	if l.autoIndent {
-		l.InsertText([]rune(spaces), true)
+		l.insertText([]rune(spaces), true)
 	}
 }
 
@@ -633,7 +629,7 @@ func (l *Line) InsertLineAbove(copyMargin bool) {
 	}
 
 	l.CursorToStartOfLine(false)
-	l.InsertText([]rune(insert), true)
+	l.insertText([]rune(insert), true)
 	l.SetCursorPosition(l.cursorPosition - 1)
 }
 
@@ -648,7 +644,7 @@ func (l *Line) InsertLineBelow(copyMargin bool) {
 	}
 
 	l.CursorToEndOfLine()
-	l.InsertText([]rune(insert), true)
+	l.insertText([]rune(insert), true)
 }
 
 // OverwriteText 覆盖光标位置到行尾最多 len(data) 长度数据，
@@ -674,11 +670,24 @@ func (l *Line) OverwriteText(data []rune, moveCursor bool) {
 // InsertText 在 cursorPosition 的位置插入 data
 // moveCursor 表示插入后是否移动光标
 func (l *Line) InsertText(data []rune, moveCursor bool) {
+	l.insertText(data, moveCursor)
+
+	if l.CompleteAfterInsertText() {
+		l.StartComplete(false)
+	}
+}
+
+func (l *Line) insertText(data []rune, moveCursor bool) {
 	result := concatRunes(l.buffer[:l.cursorPosition], data, l.buffer[l.cursorPosition:])
 	l.setText(result)
 	if moveCursor {
 		l.SetCursorPosition(l.cursorPosition + len(data))
 	}
+}
+
+// CompleteAfterInsertText 返回 true 表示每次插入文本我们都获取一次补全
+func (l *Line) CompleteAfterInsertText() bool {
+	return l.CreateCode().CompleteAfterInsertText()
 }
 
 func (l *Line) removeRunes(index int, count int) []rune {

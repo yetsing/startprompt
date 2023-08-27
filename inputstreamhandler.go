@@ -368,7 +368,7 @@ func (b *BaseHandler) F18(...rune)      {}
 func (b *BaseHandler) F19(...rune)      {}
 func (b *BaseHandler) F20(...rune)      {}
 func (b *BaseHandler) EscapeAction(...rune) {
-	b.line.ExitComplete()
+	b.line.CancelComplete()
 }
 func (b *BaseHandler) InsertChar(a ...rune) {
 	b.line.ToNormalMode()

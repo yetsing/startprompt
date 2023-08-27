@@ -95,6 +95,10 @@ func (c *HighlightCode) ContinueInput() bool {
 	return false
 }
 
+func (c *HighlightCode) CompleteAfterInsertText() bool {
+	return false
+}
+
 func main() {
 	var schema = startprompt.Schema{
 		token.Number: terminalcolor.NewFgColorStyleHex("#4E9A06"),

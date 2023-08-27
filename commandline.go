@@ -57,8 +57,7 @@ type CommandLineOption struct {
 	// 自动缩进，如果开启，新行的缩进会与上一行保持一致
 	AutoIndent bool
 	// 开启 debug 日志
-	EnableDebug       bool
-	EnableConcurrency bool
+	EnableDebug bool
 }
 
 var defaultCommandLineOption = &CommandLineOption{
@@ -106,7 +105,6 @@ func (cp *CommandLineOption) update(other *CommandLineOption) {
 	}
 	cp.AutoIndent = other.AutoIndent
 	cp.EnableDebug = other.EnableDebug
-	cp.EnableConcurrency = other.EnableConcurrency
 }
 
 type CommandLine struct {
@@ -134,26 +132,24 @@ type CommandLine struct {
 }
 
 func (c *CommandLine) setup() {
+	c.reset()
 	if c.option.EnableDebug {
 		enableDebugLog()
 	} else {
 		disableDebugLog()
 	}
-	if c.option.EnableConcurrency {
-		//    新开协程读取用户输入
-		go func() {
-			for {
-				r, _, err := c.reader.ReadRune()
-				if err != nil {
-					c.readError = err
-					c.readChannel <- 0
-					break
-				}
-				c.readChannel <- r
+	//    新开协程读取用户输入
+	go func() {
+		for {
+			r, _, err := c.reader.ReadRune()
+			if err != nil {
+				c.readError = err
+				c.readChannel <- 0
+				break
 			}
-		}()
-	}
-	c.reset()
+			c.readChannel <- r
+		}
+	}()
 }
 
 func NewCommandLine(option *CommandLineOption) (*CommandLine, error) {
@@ -187,13 +183,11 @@ func (c *CommandLine) reset() {
 	c.exitFlag = false
 	c.abortFlag = false
 	c.returnCode = nil
+	c.readError = nil
 }
 
 // RequestRedraw 请求重绘（线程安全）
 func (c *CommandLine) RequestRedraw() {
-	if !c.option.EnableConcurrency {
-		panic("Must enable concurrency")
-	}
 	if c.redrawChannel != nil {
 		c.redrawChannel <- 'x'
 	}
@@ -201,10 +195,6 @@ func (c *CommandLine) RequestRedraw() {
 
 // RunInExecutor 运行后台任务
 func (c *CommandLine) RunInExecutor(callback func()) {
-	if !c.option.EnableConcurrency {
-		panic("Must enable concurrency")
-	}
-
 	go callback()
 }
 
@@ -257,7 +247,9 @@ func (c *CommandLine) ReadInput() (string, error) {
 	render.render(line.GetRenderContext(), false, false)
 
 	resetFunc := func() {
+		is.Reset()
 		line.reset()
+		render.reset()
 		c.reset()
 	}
 
@@ -280,35 +272,26 @@ func (c *CommandLine) ReadInput() (string, error) {
 	}()
 
 	var r rune
-	reader := c.reader
 	var inputText string
 	for {
 		//    读取用户输入
-		if c.option.EnableConcurrency {
-			//    用户有多个任务运行，不能一直阻塞在用户输入上
-			var pollEvent PollEvent
-			r, pollEvent = c.pollEvent()
-			switch pollEvent {
-			case PollEventInput:
-				if c.readError != nil {
-					return "", err
-				}
-				DebugLog("read rune: %d", r)
-				//    识别用户输入，触发事件
-				is.Feed(r)
-			case PollEventTimeout:
-				//    读取用户输入超时
-				c.OnInputTimeout(line.CreateCode())
-				continue
-			}
-		} else {
-			r, _, err = reader.ReadRune()
-			if err != nil {
-				return "", err
+		var pollEvent PollEvent
+		r, pollEvent = c.pollEvent()
+		switch pollEvent {
+		case PollEventInput:
+			if c.readError != nil {
+				return "", c.readError
 			}
 			DebugLog("read rune: %d", r)
 			//    识别用户输入，触发事件
 			is.Feed(r)
+		case PollEventTimeout:
+			//    读取用户输入超时
+			c.OnInputTimeout(line.CreateCode())
+			if !is.FeedTimeout() {
+				//    没有触发事件，进入下一次循环
+				continue
+			}
 		}
 
 		//    处理特别的输入事件结果

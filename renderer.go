@@ -341,3 +341,7 @@ func (r *rRenderer) flush() {
 		panic(err)
 	}
 }
+
+func (r *rRenderer) reset() {
+
+}

@@ -42,6 +42,10 @@ func (c *MultilineCode) ContinueInput() bool {
 	return c.document.EmptyLineCountAtTheEnd() == 0
 }
 
+func (c *MultilineCode) CompleteAfterInsertText() bool {
+	return false
+}
+
 func main() {
 	c, err := startprompt.NewCommandLine(&startprompt.CommandLineOption{
 		CodeFactory: newMultilineCode,

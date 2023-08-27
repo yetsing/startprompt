@@ -4,7 +4,7 @@ start build prompt commandline application
 
 开始构建提示符命令行应用
 
-~~复刻划掉~~参考了 [python-prompt-toolkit](https://github.com/prompt-toolkit/python-prompt-toolkit) 库
+~~复刻划掉~~参考 [python-prompt-toolkit](https://github.com/prompt-toolkit/python-prompt-toolkit) 库
 
 # hello world
 
@@ -17,6 +17,7 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/yetsing/startprompt"
 )
 
@@ -26,21 +27,21 @@ func main() {
 		fmt.Printf("failed to startprompt.NewCommandLine: %v\n", err)
 		return
 	}
-    line, err := c.ReadInput()
-    if err != nil {
-        fmt.Printf("ReadInput error: %v\n", err)
-    }
-    fmt.Println("echo:", line)
+	line, err := c.ReadInput()
+	if err != nil {
+		fmt.Printf("ReadInput error: %v\n", err)
+	}
+	fmt.Println("echo:", line)
 }
 ```
 
  `examples` 文件夹有一些简单的例子
 
-#### more examples
+#### 更多例子
 
 - [startprompt-python-repl](https://github.com/yetsing/startprompt-python-repl) 一个 Python repl
 
-### keybinding
+### 快捷键 keybinding 
 
 默认快捷键操作可看 [keybinding](./docs/keybinding.md)
 
