@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/yetsing/startprompt/terminalcode"
 	"golang.org/x/term"
 )
 
@@ -57,7 +58,8 @@ type CommandLineOption struct {
 	// 自动缩进，如果开启，新行的缩进会与上一行保持一致
 	AutoIndent bool
 	// 开启 debug 日志
-	EnableDebug bool
+	EnableDebug  bool
+	MouseSupport bool
 }
 
 var defaultCommandLineOption = &CommandLineOption{
@@ -69,6 +71,7 @@ var defaultCommandLineOption = &CommandLineOption{
 	OnExit:        AbortActionReturnError,
 	AutoIndent:    false,
 	EnableDebug:   false,
+	MouseSupport:  false,
 }
 
 func (cp *CommandLineOption) copy() *CommandLineOption {
@@ -81,6 +84,7 @@ func (cp *CommandLineOption) copy() *CommandLineOption {
 		OnExit:        cp.OnExit,
 		AutoIndent:    cp.AutoIndent,
 		EnableDebug:   cp.EnableDebug,
+		MouseSupport:  cp.MouseSupport,
 	}
 }
 
@@ -105,6 +109,7 @@ func (cp *CommandLineOption) update(other *CommandLineOption) {
 	}
 	cp.AutoIndent = other.AutoIndent
 	cp.EnableDebug = other.EnableDebug
+	cp.MouseSupport = other.MouseSupport
 }
 
 type CommandLine struct {
@@ -271,6 +276,11 @@ func (c *CommandLine) ReadInput() (string, error) {
 		}
 	}()
 
+	if c.option.MouseSupport {
+		c.enableMouseSupport()
+		defer c.disableMouseSupport()
+	}
+
 	var r rune
 	var inputText string
 	for {
@@ -415,6 +425,14 @@ func (c *CommandLine) SetAbort() {
 
 func (c *CommandLine) SetReturnValue(code Code) {
 	c.returnCode = code
+}
+
+func (c *CommandLine) enableMouseSupport() {
+	c.Print(terminalcode.EnableX10Mouse)
+}
+
+func (c *CommandLine) disableMouseSupport() {
+	c.Print(terminalcode.DisableX10Mouse)
 }
 
 type LineCallbacks struct {

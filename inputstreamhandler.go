@@ -269,7 +269,6 @@ func (b *BaseHandler) CtrlI(...rune) {
 	b.tab()
 }
 func (b *BaseHandler) CtrlJ(...rune) {
-	b.line.ToNormalMode()
 	// ctrl_j 相当于按下 Enter
 	b.line.AutoEnter()
 }
@@ -281,7 +280,6 @@ func (b *BaseHandler) CtrlL(...rune) {
 	b.line.Clear()
 }
 func (b *BaseHandler) CtrlM(...rune) {
-	b.line.ToNormalMode()
 	// ctrl_m 相等于 "\r" ，我们把他当成 \n 的效果
 	b.line.AutoEnter()
 }

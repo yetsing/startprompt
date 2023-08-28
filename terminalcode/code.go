@@ -26,6 +26,17 @@ const (
 	HideCursor = "\x1b[?25l"
 	// DisplayCursor 显示光标
 	DisplayCursor = "\x1b[?25h"
+
+	ResetAttributes = "\x1b[0m"
+
+	// ref: https://www.xfree86.org/current/ctlseqs.html#Mouse%20Tracking
+
+	// EnableX10Mouse X10MouseEnable 开启 X10 鼠标上报
+	EnableX10Mouse  = "\x1b[?9h"
+	DisableX10Mouse = "\x1b[?9l"
+
+	// RequestCursorPosition 请求光标位置 ref: https://vt100.net/docs/vt510-rm/CPR.html
+	RequestCursorPosition = "\x1b[6n"
 )
 
 // CursorGoto 移动光标到指定位置

@@ -33,9 +33,10 @@ func (is *InputStream) Reset() {
 //	导致无法区分 Esc 和其他的快捷键，只能等待后续字符，再做判断
 //	因此按下 Esc 后不会有事件触发，现在通过超时来快速识别 Esc 键
 func (is *InputStream) FeedTimeout() bool {
-	// 触发 Esc 事件
 	var offset int
+	is.isEmitEvent = false
 	for i, r := range is.previous {
+		// 触发 Esc 事件
 		if r == '\x1b' {
 			is.callHandler(keys.EscapeAction, '\x1b')
 		} else {

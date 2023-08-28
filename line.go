@@ -611,6 +611,10 @@ func (l *Line) Newline() {
 
 // AutoEnter 自动处理 Enter
 func (l *Line) AutoEnter() {
+	if l.mode.Is(linemode.Complete) {
+		l.AcceptComplete()
+		return
+	}
 	if l.IsMultiline() {
 		l.Newline()
 	} else {

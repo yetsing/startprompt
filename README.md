@@ -41,6 +41,8 @@ func main() {
 
 - [startprompt-python-repl](https://github.com/yetsing/startprompt-python-repl) 一个 Python repl
 
+- sqlite cli todo
+
 ### 快捷键 keybinding 
 
 默认快捷键操作可看 [keybinding](./docs/keybinding.md)

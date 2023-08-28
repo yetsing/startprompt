@@ -71,6 +71,9 @@ var eventStr = []string{
 	"<F20>",
 	"<escape>",
 	"<insert_char>",
+
+	"<Cursor-Position-Response>",
+	"<Mouse-Click>",
 }
 
 func (a Event) String() string {
@@ -145,6 +148,10 @@ const (
 	F20
 	EscapeAction
 	InsertChar
+
+	// Special
+	CPRResponse
+	MouseClick
 
 	Tab = CtrlI
 )

@@ -164,17 +164,16 @@ func (c *cCompletionMenu) getMenuItemMetaToken(completion *Completion, isCurrent
 
 func newRender(schema Schema) *rRenderer {
 	return &rRenderer{
-		writer:    bufio.NewWriter(os.Stdout),
-		schema:    schema,
-		cursorRow: 0,
+		writer: bufio.NewWriter(os.Stdout),
+		schema: schema,
 	}
 }
 
 type rRenderer struct {
 	writer *bufio.Writer
 	schema Schema
-	//    光标在文本的行，用于将光标移动到文本第一行
-	cursorRow int
+	//    光标在文本中的坐标
+	cursorCoordinate Coordinate
 }
 
 type _Size struct {
@@ -220,8 +219,8 @@ func (r *rRenderer) renderToStr(renderContext *RenderContext, abort bool, accept
 	var buf bytes.Buffer
 
 	//    移动光标到输入的左上方
-	if r.cursorRow > 0 {
-		buf.WriteString(terminalcode.CursorUp(r.cursorRow))
+	if r.cursorCoordinate.Y > 0 {
+		buf.WriteString(terminalcode.CursorUp(r.cursorCoordinate.Y))
 	}
 	buf.WriteString(terminalcode.CarriageReturn)
 	//    删除当前行到屏幕下方
@@ -234,7 +233,7 @@ func (r *rRenderer) renderToStr(renderContext *RenderContext, abort bool, accept
 
 	//    用户输入完毕或者放弃输入或者退出，另起一行
 	if accept || abort {
-		r.cursorRow = 0
+		r.cursorCoordinate = Coordinate{0, 0}
 		buf.WriteString(terminalcode.CRLF)
 	} else {
 		// 移动光标到正确位置
@@ -253,7 +252,7 @@ func (r *rRenderer) renderToStr(renderContext *RenderContext, abort bool, accept
 		} else if lastCoordinate.X < cursorCoordinate.X {
 			buf.WriteString(terminalcode.CursorForward(cursorCoordinate.X - lastCoordinate.X))
 		}
-		r.cursorRow = cursorCoordinate.Y
+		r.cursorCoordinate = cursorCoordinate
 	}
 	return buf.String()
 }
@@ -278,7 +277,7 @@ func (r *rRenderer) renderCompletions(completions []*Completion) {
 	}
 	r.flush()
 
-	r.cursorRow = 0
+	r.cursorCoordinate = Coordinate{0, 0}
 }
 
 // inColumns 将词语按行自适应排列， marginLeft 左边空格数量
@@ -322,10 +321,21 @@ func (r *rRenderer) inColumns(items []string, marginLeft int) []string {
 	return lines
 }
 
+// erase 清空当前输出，移动光标到第一行
+func (r *rRenderer) erase() {
+	r.write(terminalcode.CursorBackward(r.cursorCoordinate.X))
+	r.write(terminalcode.CursorUp(r.cursorCoordinate.Y))
+	r.write(terminalcode.EraseDown)
+	r.write(terminalcode.ResetAttributes)
+	r.flush()
+	r.reset()
+}
+
 // clear 清空屏幕，移动到左上角
 func (r *rRenderer) clear() {
 	r.write(terminalcode.EraseScreen)
 	r.write(terminalcode.CursorGoto(0, 0))
+	r.flush()
 }
 
 func (r *rRenderer) write(s string) {
