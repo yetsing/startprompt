@@ -1,7 +1,7 @@
 package main
 
 /*
-存储历史输入到文件中
+存储历史输入到文件中，通过 Ctrl-P 和 Ctrl-N 切换历史命令
 */
 
 import (
@@ -19,6 +19,7 @@ func main() {
 		fmt.Printf("failed to startprompt.NewCommandLine: %v\n", err)
 		return
 	}
+	defer c.Close()
 	for {
 		line, err := c.ReadInput()
 		if err != nil {

@@ -111,6 +111,7 @@ func main() {
 		fmt.Printf("failed to startprompt.NewCommandLine: %v\n", err)
 		return
 	}
+	defer c.Close()
 	fmt.Println("Press tab to complete")
 	line, err := c.ReadInput()
 	if err != nil {

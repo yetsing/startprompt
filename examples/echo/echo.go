@@ -17,6 +17,7 @@ func main() {
 		fmt.Printf("failed to startprompt.NewCommandLine: %v\n", err)
 		return
 	}
+	defer c.Close()
 	for {
 		line, err := c.ReadInput()
 		if err != nil {

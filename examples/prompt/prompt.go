@@ -100,6 +100,7 @@ func main() {
 		fmt.Printf("failed to startprompt.NewCommandLine: %v\n", err)
 		return
 	}
+	defer c.Close()
 	fmt.Println("Press Ctrl-D exit")
 	for {
 		line, err := c.ReadInput()

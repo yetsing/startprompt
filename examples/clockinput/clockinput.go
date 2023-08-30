@@ -37,6 +37,7 @@ func main() {
 		fmt.Printf("failed to startprompt.NewCommandLine: %v\n", err)
 		return
 	}
+	defer c.Close()
 	c.RunInExecutor(func() {
 		for {
 			time.Sleep(1 * time.Second)
