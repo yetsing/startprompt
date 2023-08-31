@@ -2,8 +2,6 @@ package startprompt
 
 import (
 	"testing"
-
-	"github.com/yetsing/startprompt/keys"
 )
 
 func prepareDocument() *Document {
@@ -35,7 +33,7 @@ func testBoolEqual(t *testing.T, want bool, got bool) {
 	}
 }
 
-func testKeyEventEqual(t *testing.T, want keys.Event, got keys.Event) {
+func testKeyEventEqual(t *testing.T, want EventType, got EventType) {
 	t.Helper()
 	if got != want {
 		t.Errorf("want=%v, but got=%v", want, got)

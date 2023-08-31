@@ -1,8 +1,8 @@
-package keys
+package startprompt
 
-type Event int
+type EventType int
 
-var eventStr = []string{
+var eventTypeStr = []string{
 	"<ctrl_a>",
 	"<ctrl_b>",
 	"<ctrl_c>",
@@ -71,18 +71,15 @@ var eventStr = []string{
 	"<F20>",
 	"<escape>",
 	"<insert_char>",
-
-	"<Cursor-Position-Response>",
-	"<Mouse-Click>",
 }
 
-func (a Event) String() string {
-	return eventStr[a]
+func (a EventType) String() string {
+	return eventTypeStr[a]
 }
 
 //goland:noinspection GoUnusedConst
 const (
-	CtrlA Event = iota
+	CtrlA EventType = iota
 	CtrlB
 	CtrlC
 	CtrlD
@@ -148,10 +145,6 @@ const (
 	F20
 	EscapeAction
 	InsertChar
-
-	// Special
-	CPRResponse
-	MouseClick
 
 	Tab = CtrlI
 )
