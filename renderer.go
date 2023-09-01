@@ -162,14 +162,14 @@ func (c *cCompletionMenu) getMenuItemMetaToken(completion *Completion, isCurrent
 	return token.NewToken(ttype, " "+ljustWidth(completion.DisplayMeta, width))
 }
 
-func newRender(schema Schema) *rRenderer {
-	return &rRenderer{
+func newRender(schema Schema) *Renderer {
+	return &Renderer{
 		writer: bufio.NewWriter(os.Stdout),
 		schema: schema,
 	}
 }
 
-type rRenderer struct {
+type Renderer struct {
 	writer *bufio.Writer
 	schema Schema
 	//    光标在文本中的坐标
@@ -181,7 +181,7 @@ type _Size struct {
 	height int
 }
 
-func (r *rRenderer) getSize() _Size {
+func (r *Renderer) getSize() _Size {
 	width, height := getSize(int(os.Stdin.Fd()))
 	return _Size{
 		width:  width,
@@ -189,7 +189,7 @@ func (r *rRenderer) getSize() _Size {
 	}
 }
 
-func (r *rRenderer) getNewScreen(renderContext *RenderContext) *Screen {
+func (r *Renderer) getNewScreen(renderContext *RenderContext) *Screen {
 	screen := NewScreen(r.schema, r.getSize())
 
 	//    写入提示符
@@ -215,7 +215,7 @@ func (r *rRenderer) getNewScreen(renderContext *RenderContext) *Screen {
 	return screen
 }
 
-func (r *rRenderer) renderToStr(renderContext *RenderContext, abort bool, accept bool) string {
+func (r *Renderer) renderToStr(renderContext *RenderContext, abort bool, accept bool) string {
 	var buf bytes.Buffer
 
 	//    移动光标到输入的左上方
@@ -257,14 +257,14 @@ func (r *rRenderer) renderToStr(renderContext *RenderContext, abort bool, accept
 	return buf.String()
 }
 
-func (r *rRenderer) render(renderContext *RenderContext, abort bool, accept bool) {
+func (r *Renderer) render(renderContext *RenderContext, abort bool, accept bool) {
 	out := r.renderToStr(renderContext, abort, accept)
 	r.write(out)
 	r.flush()
 }
 
 // renderCompletions 将补全选项一行行打印出来
-func (r *rRenderer) renderCompletions(completions []*Completion) {
+func (r *Renderer) renderCompletions(completions []*Completion) {
 	r.write(terminalcode.CRLF)
 	items := make([]string, len(completions))
 	for i, completion := range completions {
@@ -281,7 +281,7 @@ func (r *rRenderer) renderCompletions(completions []*Completion) {
 }
 
 // inColumns 将词语按行自适应排列， marginLeft 左边空格数量
-func (r *rRenderer) inColumns(items []string, marginLeft int) []string {
+func (r *Renderer) inColumns(items []string, marginLeft int) []string {
 	// 计算最宽的选项
 	maxWidth := 0
 	for _, item := range items {
@@ -322,7 +322,7 @@ func (r *rRenderer) inColumns(items []string, marginLeft int) []string {
 }
 
 // erase 清空当前输出，移动光标到第一行
-func (r *rRenderer) erase() {
+func (r *Renderer) erase() {
 	r.write(terminalcode.CursorBackward(r.cursorCoordinate.X))
 	r.write(terminalcode.CursorUp(r.cursorCoordinate.Y))
 	r.write(terminalcode.EraseDown)
@@ -332,26 +332,26 @@ func (r *rRenderer) erase() {
 }
 
 // clear 清空屏幕，移动到左上角
-func (r *rRenderer) clear() {
+func (r *Renderer) clear() {
 	r.write(terminalcode.EraseScreen)
 	r.write(terminalcode.CursorGoto(0, 0))
 	r.flush()
 }
 
-func (r *rRenderer) write(s string) {
+func (r *Renderer) write(s string) {
 	_, err := r.writer.WriteString(s)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func (r *rRenderer) flush() {
+func (r *Renderer) flush() {
 	err := r.writer.Flush()
 	if err != nil {
 		panic(err)
 	}
 }
 
-func (r *rRenderer) reset() {
+func (r *Renderer) reset() {
 
 }

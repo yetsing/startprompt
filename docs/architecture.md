@@ -4,9 +4,9 @@
 因为非 ASCII 字符（比如中文）会占用 2 个或者多个 x 。
 两个坐标都是从 0 开始计数。
 
-InputStream 负责解析输入，触发相应事件，调用 InputStreamHandler 处理事件
+InputStream 负责解析输入，触发相应事件，调用 EventHandler 处理事件
 
-InputStreamHandler 负责处理事件，调用 Line 实现各种操作
+EventHandler 负责处理事件，调用 Line 实现各种操作
 
 Line 封装了文本和光标的操作
 

@@ -1,6 +1,6 @@
 package startprompt
 
-type Eventer interface {
+type Event interface {
 	Type() EventType
 }
 
@@ -12,6 +12,7 @@ type EventKey struct {
 	tcli      *TCommandLine
 }
 
+//goland:noinspection GoUnusedExportedFunction
 func NewEventKey(eventType EventType, data []rune) *EventKey {
 	return &EventKey{
 		eventType: eventType,
