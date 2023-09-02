@@ -234,7 +234,7 @@ func (l *Line) AutoUp() {
 func (l *Line) AutoDown() {
 	if l.mode.In(linemode.Complete) {
 		l.CompleteNext(1)
-	} else if l.Document().CursorPositionRow() > 0 {
+	} else if !l.Document().OnLastLine() {
 		l.CursorDown()
 	} else {
 		l.HistoryForward()
