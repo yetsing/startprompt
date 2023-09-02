@@ -9,12 +9,13 @@ import (
 // 解析 VT100 输入流数据
 // 参考：https://vt100.net/docs/vt100-ug/chapter3.html
 
-func NewInputStream(handler InputStreamHandler) *InputStream {
-	return &InputStream{handler: handler}
+func NewInputStream(handler EventHandler, cli *CommandLine) *InputStream {
+	return &InputStream{handler: handler, cli: cli}
 }
 
 type InputStream struct {
-	handler  InputStreamHandler
+	handler  EventHandler
+	cli      *CommandLine
 	previous string
 	// 是否触发事件
 	isEmitEvent bool
@@ -36,7 +37,7 @@ func (is *InputStream) FeedTimeout() bool {
 	for i, r := range is.previous {
 		// 触发 Esc 事件
 		if r == '\x1b' {
-			is.callHandler(EscapeAction, '\x1b')
+			is.callHandler(EventTypeEscapeAction, '\x1b')
 		} else {
 			offset = i
 			break
@@ -82,17 +83,17 @@ func (is *InputStream) Feed(r rune) {
 			first := runeAt(is.previous, 0)
 			// 按下 Esc 键就会收到 '\x1b' ，所以这里需要判断一下特殊处理
 			if first == '\x1b' {
-				is.callHandler(EscapeAction, '\x1b')
+				is.callHandler(EventTypeEscapeAction, '\x1b')
 			} else {
 				// 如果不是快捷键操作，那么就是正常的输入
-				is.callHandler(InsertChar, first)
+				is.callHandler(EventTypeInsertChar, first)
 			}
 			// 剩余的字符放到缓冲中，留待下次循环的时候处理
 			buffer = []rune(is.previous[utf8.RuneLen(first):])
 			buffer = append(buffer, r)
 			is.previous = ""
 		} else {
-			is.callHandler(InsertChar, r)
+			is.callHandler(EventTypeInsertChar, r)
 		}
 		// 如果之前有缓存字符，继续进行处理
 		if len(buffer) > 0 {
@@ -104,9 +105,10 @@ func (is *InputStream) Feed(r rune) {
 	}
 }
 
-func (is *InputStream) callHandler(event EventType, a ...rune) {
+func (is *InputStream) callHandler(eventType EventType, a ...rune) {
 	is.isEmitEvent = true
-	is.handler.Handle(event, a...)
+	event := NewEventKey(eventType, a, is.cli, nil)
+	is.handler.Handle(event)
 }
 
 func runeAt(s string, index int) rune {
@@ -130,91 +132,91 @@ func prefixMatchKeyActions(prefix string) bool {
 
 var keyActions = map[string]EventType{
 	// Control-Space (Also for Ctrl-@)
-	"\x00": CtrlSpace,
-	"\x01": CtrlA,
-	"\x02": CtrlB,
-	"\x03": CtrlC,
-	"\x04": CtrlD,
-	"\x05": CtrlE,
-	"\x06": CtrlF,
-	"\x07": CtrlG,
+	"\x00": EventTypeCtrlSpace,
+	"\x01": EventTypeCtrlA,
+	"\x02": EventTypeCtrlB,
+	"\x03": EventTypeCtrlC,
+	"\x04": EventTypeCtrlD,
+	"\x05": EventTypeCtrlE,
+	"\x06": EventTypeCtrlF,
+	"\x07": EventTypeCtrlG,
 	// Control-H (8) (Identical to '\b')
-	"\x08": CtrlH,
+	"\x08": EventTypeCtrlH,
 	// Control-I (9) (Identical to '\t')
-	"\x09": CtrlI,
+	"\x09": EventTypeCtrlI,
 	// Control-J (10) (Identical to '\n')
-	"\x0a": CtrlJ,
-	"\x0b": CtrlK,
-	// Control-L (clear; form feed)
-	"\x0c": CtrlL,
+	"\x0a": EventTypeCtrlJ,
+	"\x0b": EventTypeCtrlK,
+	// Control-L (Clear; form feed)
+	"\x0c": EventTypeCtrlL,
 	// Control-M (13) (Identical to '\r')
-	"\x0d": CtrlM,
-	"\x0e": CtrlN,
-	"\x0f": CtrlO,
-	"\x10": CtrlP,
-	"\x11": CtrlQ,
-	"\x12": CtrlR,
-	"\x13": CtrlS,
-	"\x14": CtrlT,
-	"\x15": CtrlU,
-	"\x16": CtrlV,
-	"\x17": CtrlW,
-	"\x18": CtrlX,
-	"\x19": CtrlY,
-	"\x1a": CtrlZ,
+	"\x0d": EventTypeCtrlM,
+	"\x0e": EventTypeCtrlN,
+	"\x0f": EventTypeCtrlO,
+	"\x10": EventTypeCtrlP,
+	"\x11": EventTypeCtrlQ,
+	"\x12": EventTypeCtrlR,
+	"\x13": EventTypeCtrlS,
+	"\x14": EventTypeCtrlT,
+	"\x15": EventTypeCtrlU,
+	"\x16": EventTypeCtrlV,
+	"\x17": EventTypeCtrlW,
+	"\x18": EventTypeCtrlX,
+	"\x19": EventTypeCtrlY,
+	"\x1a": EventTypeCtrlZ,
 
 	// Both Control-\ and Ctrl-|
-	"\x1c": CtrlBackslash,
+	"\x1c": EventTypeCtrlBackslash,
 	// Control-]
-	"\x1d": CtrlSquareClose,
+	"\x1d": EventTypeCtrlSquareClose,
 	// Control-^
-	"\x1e": CtrlCircumflex,
+	"\x1e": EventTypeCtrlCircumflex,
 	// Control-underscore (Also for Ctrl-hypen.)
-	"\x1f": CtrlUnderscore,
+	"\x1f": EventTypeCtrlUnderscore,
 	// (127) Backspace
-	"\x7f":    Backspace,
-	"\x1b[A":  ArrowUp,
-	"\x1b[B":  ArrowDown,
-	"\x1b[C":  ArrowRight,
-	"\x1b[D":  ArrowLeft,
-	"\x1b[H":  Home,
-	"\x1bOH":  Home,
-	"\x1b[F":  End,
-	"\x1bOF":  End,
-	"\x1b[3~": DeleteAction,
+	"\x7f":    EventTypeBackspace,
+	"\x1b[A":  EventTypeArrowUp,
+	"\x1b[B":  EventTypeArrowDown,
+	"\x1b[C":  EventTypeArrowRight,
+	"\x1b[D":  EventTypeArrowLeft,
+	"\x1b[H":  EventTypeHome,
+	"\x1bOH":  EventTypeHome,
+	"\x1b[F":  EventTypeEnd,
+	"\x1bOF":  EventTypeEnd,
+	"\x1b[3~": EventTypeDeleteAction,
 	// xterm, gnome-terminal.
-	"\x1b[3;2~": ShiftDelete,
+	"\x1b[3;2~": EventTypeShiftDelete,
 	// tmux
-	"\x1b[1~": Home,
+	"\x1b[1~": EventTypeHome,
 	// tmux
-	"\x1b[4~": End,
-	"\x1b[5~": PageUp,
-	"\x1b[6~": PageDown,
+	"\x1b[4~": EventTypeEnd,
+	"\x1b[5~": EventTypePageUp,
+	"\x1b[6~": EventTypePageDown,
 	// xrvt
-	"\x1b[7~": Home,
+	"\x1b[7~": EventTypeHome,
 	// xrvt
-	"\x1b[8~": End,
+	"\x1b[8~": EventTypeEnd,
 	// shift + tab
-	"\x1b[Z": Backtab,
+	"\x1b[Z": EventTypeBacktab,
 
-	"\x1bOP":   F1,
-	"\x1bOQ":   F2,
-	"\x1bOR":   F3,
-	"\x1bOS":   F4,
-	"\x1b[15~": F5,
-	"\x1b[17~": F6,
-	"\x1b[18~": F7,
-	"\x1b[19~": F8,
-	"\x1b[20~": F9,
-	"\x1b[21~": F10,
-	"\x1b[23~": F11,
-	"\x1b[24~": F12,
-	"\x1b[25~": F13,
-	"\x1b[26~": F14,
-	"\x1b[28~": F15,
-	"\x1b[29~": F16,
-	"\x1b[31~": F17,
-	"\x1b[32~": F18,
-	"\x1b[33~": F19,
-	"\x1b[34~": F20,
+	"\x1bOP":   EventTypeF1,
+	"\x1bOQ":   EventTypeF2,
+	"\x1bOR":   EventTypeF3,
+	"\x1bOS":   EventTypeF4,
+	"\x1b[15~": EventTypeF5,
+	"\x1b[17~": EventTypeF6,
+	"\x1b[18~": EventTypeF7,
+	"\x1b[19~": EventTypeF8,
+	"\x1b[20~": EventTypeF9,
+	"\x1b[21~": EventTypeF10,
+	"\x1b[23~": EventTypeF11,
+	"\x1b[24~": EventTypeF12,
+	"\x1b[25~": EventTypeF13,
+	"\x1b[26~": EventTypeF14,
+	"\x1b[28~": EventTypeF15,
+	"\x1b[29~": EventTypeF16,
+	"\x1b[31~": EventTypeF17,
+	"\x1b[32~": EventTypeF18,
+	"\x1b[33~": EventTypeF19,
+	"\x1b[34~": EventTypeF20,
 }

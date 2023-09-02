@@ -25,7 +25,7 @@ func (c *ClockPrompt) GetPrompt() []token.Token {
 	}
 }
 
-func NewClockPrompt(_ *startprompt.Line, _ startprompt.Code) startprompt.Prompt {
+func NewClockPrompt(_ startprompt.Code) startprompt.Prompt {
 	return &ClockPrompt{startprompt.BasePrompt{}}
 }
 
@@ -46,8 +46,8 @@ func main() {
 	})
 	line, err := c.ReadInput()
 	if err != nil {
-		fmt.Printf("ReadInput error: %v\n", err)
+		c.Printf("ReadInput error: %v\n", err)
 		return
 	}
-	fmt.Println("You said: ", line)
+	c.Println("You said:", line)
 }

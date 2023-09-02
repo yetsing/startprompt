@@ -8,7 +8,7 @@ import (
 	"github.com/yetsing/startprompt/token"
 )
 
-type PromptFactory func(line *Line, code Code) Prompt
+type PromptFactory func(code Code) Prompt
 
 type Prompt interface {
 	// GetPrompt 获取输入的提示符
@@ -21,7 +21,7 @@ type BasePrompt struct {
 }
 
 //goland:noinspection GoUnusedParameter
-func newBasePrompt(line *Line, code Code) Prompt {
+func newBasePrompt(code Code) Prompt {
 	return &BasePrompt{}
 }
 

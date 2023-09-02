@@ -24,9 +24,9 @@ func main() {
 			if errors.Is(err, startprompt.ExitError) {
 				break
 			}
-			fmt.Printf("ReadInput error: %v\n", err)
+			c.Printf("ReadInput error: %v\n", err)
 			break
 		}
-		fmt.Println("echo:", line)
+		c.Println("echo:", line)
 	}
 }

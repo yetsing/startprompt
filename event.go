@@ -13,15 +13,21 @@ type EventKey struct {
 }
 
 //goland:noinspection GoUnusedExportedFunction
-func NewEventKey(eventType EventType, data []rune) *EventKey {
+func NewEventKey(eventType EventType, data []rune, cli *CommandLine, tcli *TCommandLine) *EventKey {
 	return &EventKey{
 		eventType: eventType,
 		data:      data,
+		cli:       cli,
+		tcli:      tcli,
 	}
 }
 
 func (ek *EventKey) Type() EventType {
 	return ek.eventType
+}
+
+func (ek *EventKey) GetData() []rune {
+	return ek.data
 }
 
 func (ek *EventKey) GetCommandLine() *CommandLine {

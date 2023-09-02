@@ -21,12 +21,11 @@ var schema = map[token.TokenType]terminalcolor.Style{
 }
 
 type Prompt struct {
-	line *startprompt.Line
 	code startprompt.Code
 }
 
-func NewPrompt(line *startprompt.Line, code startprompt.Code) startprompt.Prompt {
-	return &Prompt{line: line, code: code}
+func NewPrompt(code startprompt.Code) startprompt.Prompt {
+	return &Prompt{code: code}
 }
 
 func (p *Prompt) GetPrompt() []token.Token {
@@ -101,20 +100,20 @@ func main() {
 		return
 	}
 	defer c.Close()
-	fmt.Println("Press Ctrl-D exit")
+	c.Println("Press Ctrl-D exit")
 	for {
 		line, err := c.ReadInput()
 		if err != nil {
 			if errors.Is(err, startprompt.ExitError) {
 				break
 			}
-			fmt.Printf("ReadInput error: %v\n", err)
+			c.Printf("ReadInput error: %v\n", err)
 			break
 		}
 		if len(line) == 0 {
 			continue
 		}
 		inputCount++
-		fmt.Println(line)
+		c.Println(line)
 	}
 }

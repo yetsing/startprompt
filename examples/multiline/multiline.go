@@ -58,8 +58,8 @@ func main() {
 	defer c.Close()
 	line, err := c.ReadInput()
 	if err != nil {
-		fmt.Printf("ReadInput error: %v\n", err)
+		c.Printf("ReadInput error: %v\n", err)
 		return
 	}
-	fmt.Println("echo:", line)
+	c.Println("echo:", line)
 }

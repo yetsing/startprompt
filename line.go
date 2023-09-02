@@ -8,35 +8,6 @@ import (
 	"github.com/yetsing/startprompt/enums/linemode"
 )
 
-type Callbacks interface {
-	ClearScreen()
-	Exit()
-	Abort()
-	ReturnInput(code Code)
-}
-
-type NoopCallbacks struct{}
-
-func NewNoopCallbacks() Callbacks {
-	return &NoopCallbacks{}
-}
-
-func (n *NoopCallbacks) ClearScreen() {
-
-}
-
-func (n *NoopCallbacks) Exit() {
-
-}
-
-func (n *NoopCallbacks) Abort() {
-
-}
-
-func (n *NoopCallbacks) ReturnInput(_ Code) {
-
-}
-
 type cCompletionState struct {
 	// 补全开始时的 document
 	originalDocument *Document
@@ -72,10 +43,10 @@ type _UndoEntry struct {
 }
 
 type Line struct {
-	// string 类型的下标切片是按字节来的，而不是 Unicode
-	// 为了方便增删改，选择使用 []rune
+	//    string 类型的下标切片是按字节来的，而不是 Unicode
+	//    为了方便增删改，选择使用 []rune
 	buffer []rune
-	// 光标在文本 buffer 中的位置
+	//    光标在文本 buffer 中的位置
 	cursorPosition int
 	undoStack      []*_UndoEntry
 	mode           linemode.LineMode
@@ -86,28 +57,24 @@ type Line struct {
 
 	history History
 
-	callbacks Callbacks
-
 	workingLines []string
 	workingIndex int
 
-	// 自动缩进，如果开启，新行的缩进会与上一行保持一致
+	//    自动缩进，如果开启，新行的缩进会与上一行保持一致
 	autoIndent bool
+	//    用户是否确定本次输入
+	accept bool
 }
 
 func newLine(
 	codeFactory CodeFactory,
-	newPromptFunc PromptFactory,
 	history History,
-	callbacks Callbacks,
 	autoIndent bool,
 ) *Line {
 	line := &Line{
 		codeFactory:    codeFactory,
-		promptFactory:  newPromptFunc,
 		history:        history,
 		cursorPosition: 0,
-		callbacks:      callbacks,
 
 		autoIndent: autoIndent,
 	}
@@ -567,7 +534,6 @@ func (l *Line) gotoCompletion(index int) {
 // GetRenderContext 返回渲染上下文信息
 func (l *Line) GetRenderContext() *RenderContext {
 	code := l.CreateCode()
-	prompt := l.promptFactory(l, code)
 	var completeState *cCompletionState
 	if l.mode.Is(linemode.Complete) {
 		completeState = l.completeState
@@ -576,7 +542,6 @@ func (l *Line) GetRenderContext() *RenderContext {
 	}
 
 	return newRenderContext(
-		prompt,
 		code,
 		completeState,
 		l.Document(),
@@ -618,7 +583,7 @@ func (l *Line) AutoEnter() {
 	if l.IsMultiline() {
 		l.Newline()
 	} else {
-		l.ReturnInput()
+		l.AcceptInput()
 	}
 }
 
@@ -715,18 +680,8 @@ func (l *Line) Undo() {
 	}
 }
 
-// Abort 丢弃输入（一般是用户按下 Ctrl-C）
-func (l *Line) Abort() {
-	l.callbacks.Abort()
-}
-
-// Exit 停止输入（一般是用户按下 Ctrl-D）
-func (l *Line) Exit() {
-	l.callbacks.Exit()
-}
-
-// ReturnInput 返回用户输入（一般是用户按下 Enter）
-func (l *Line) ReturnInput() {
+// AcceptInput 确定用户输入（一般是用户按下 Enter）
+func (l *Line) AcceptInput() {
 	text := l.text()
 
 	// 文本与最后一个不相同时，保存到历史中
@@ -736,7 +691,12 @@ func (l *Line) ReturnInput() {
 		}
 	}
 
-	l.callbacks.ReturnInput(l.CreateCode())
+	l.accept = true
+}
+
+// IsAccept 返回 true 表示返回用户输入，否则不返回
+func (l *Line) IsAccept() bool {
+	return l.accept
 }
 
 func (l *Line) HasText() bool {
@@ -746,10 +706,6 @@ func (l *Line) HasText() bool {
 func (l *Line) IsMultiline() bool {
 	res := l.CreateCode().ContinueInput()
 	return res
-}
-
-func (l *Line) Clear() {
-	l.callbacks.ClearScreen()
 }
 
 func (l *Line) ToNormalMode() {

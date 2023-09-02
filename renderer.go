@@ -162,10 +162,11 @@ func (c *cCompletionMenu) getMenuItemMetaToken(completion *Completion, isCurrent
 	return token.NewToken(ttype, " "+ljustWidth(completion.DisplayMeta, width))
 }
 
-func newRender(schema Schema) *Renderer {
+func newRender(schema Schema, promptFactory PromptFactory) *Renderer {
 	return &Renderer{
-		writer: bufio.NewWriter(os.Stdout),
-		schema: schema,
+		writer:        bufio.NewWriter(os.Stdout),
+		schema:        schema,
+		promptFactory: promptFactory,
 	}
 }
 
@@ -174,6 +175,7 @@ type Renderer struct {
 	schema Schema
 	//    光标在文本中的坐标
 	cursorCoordinate Coordinate
+	promptFactory    PromptFactory
 }
 
 type _Size struct {
@@ -193,7 +195,7 @@ func (r *Renderer) getNewScreen(renderContext *RenderContext) *Screen {
 	screen := NewScreen(r.schema, r.getSize())
 
 	//    写入提示符
-	prompt := renderContext.prompt
+	prompt := r.promptFactory(renderContext.code)
 	prompts := prompt.GetPrompt()
 	screen.WriteTokens(prompts, false)
 	//    设置后续行前缀函数
@@ -331,8 +333,8 @@ func (r *Renderer) erase() {
 	r.reset()
 }
 
-// clear 清空屏幕，移动到左上角
-func (r *Renderer) clear() {
+// Clear 清空屏幕，移动到左上角
+func (r *Renderer) Clear() {
 	r.write(terminalcode.EraseScreen)
 	r.write(terminalcode.CursorGoto(0, 0))
 	r.flush()

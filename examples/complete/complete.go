@@ -112,11 +112,11 @@ func main() {
 		return
 	}
 	defer c.Close()
-	fmt.Println("Press tab to complete")
+	c.Println("Press tab to complete")
 	line, err := c.ReadInput()
 	if err != nil {
-		fmt.Printf("ReadInput error: %v\n", err)
+		c.Printf("ReadInput error: %v\n", err)
 		return
 	}
-	fmt.Println("echo:", line)
+	c.Println("echo:", line)
 }

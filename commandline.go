@@ -2,14 +2,11 @@ package startprompt
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 
-	"github.com/yetsing/startprompt/terminalcode"
 	"golang.org/x/term"
 )
 
@@ -27,7 +24,7 @@ const (
 var AbortError = errors.New("user abort")
 var ExitError = errors.New("user exit")
 
-func ensureOk(err error) {
+func panicIfError(err error) {
 	if err != nil {
 		panic(err)
 	}
@@ -129,28 +126,11 @@ type CommandLine struct {
 	//   下面几个对应用户的特殊操作：退出、丢弃、确定
 	exitFlag   bool
 	abortFlag  bool
-	returnCode Code
-}
+	acceptFlag bool
 
-func (c *CommandLine) setup() {
-	c.reset()
-	if c.option.EnableDebug {
-		enableDebugLog()
-	} else {
-		disableDebugLog()
-	}
-	//    新开协程读取用户输入
-	go func() {
-		for {
-			r, _, err := c.reader.ReadRune()
-			if err != nil {
-				c.readError = err
-				c.readChannel <- 0
-				break
-			}
-			c.readChannel <- r
-		}
-	}()
+	//    命令行当前使用的 Line 和 Render 对象
+	line     *Line
+	renderer *Renderer
 }
 
 func NewCommandLine(option *CommandLineOption) (*CommandLine, error) {
@@ -180,15 +160,36 @@ func NewCommandLine(option *CommandLineOption) (*CommandLine, error) {
 	return c, nil
 }
 
-func (c *CommandLine) Close() {
-
+func (c *CommandLine) setup() {
+	c.reset()
+	if c.option.EnableDebug {
+		enableDebugLog()
+	} else {
+		disableDebugLog()
+	}
+	//    新开协程读取用户输入
+	go func() {
+		for {
+			r, _, err := c.reader.ReadRune()
+			if err != nil {
+				c.readError = err
+				c.readChannel <- 0
+				break
+			}
+			c.readChannel <- r
+		}
+	}()
 }
 
 func (c *CommandLine) reset() {
 	c.exitFlag = false
 	c.abortFlag = false
-	c.returnCode = nil
+	c.acceptFlag = false
 	c.readError = nil
+}
+
+func (c *CommandLine) Close() {
+
 }
 
 // RequestRedraw 请求重绘（线程安全）
@@ -203,25 +204,12 @@ func (c *CommandLine) RunInExecutor(callback func()) {
 	go callback()
 }
 
-// OnInputTimeout 在等待输入超时后调用
-func (c *CommandLine) OnInputTimeout(_ Code) {
-
-}
-
-func (c *CommandLine) OnReadInputStart() {
-
-}
-
-func (c *CommandLine) OnReadInputEnd() {
-
-}
-
 func (c *CommandLine) pollEvent() (rune, PollEvent) {
 	select {
 	case r := <-c.readChannel:
 		return r, PollEventInput
 	case <-c.redrawChannel:
-		// 将缓冲的信息都读取出来，以免循环中不断触发
+		//    将缓冲的信息都读取出来，以免循环中不断触发
 		loop := len(c.redrawChannel)
 		for i := 0; i < loop; i++ {
 			<-c.redrawChannel
@@ -239,16 +227,16 @@ func (c *CommandLine) ReadInput() (string, error) {
 	c.isReadingInput = true
 	c.redrawChannel = make(chan rune, 1024)
 
-	render := newRender(c.option.Schema)
+	render := newRender(c.option.Schema, c.option.PromptFactory)
+	c.renderer = render
 	line := newLine(
 		c.option.CodeFactory,
-		c.option.PromptFactory,
 		c.option.History,
-		newLineCallbacks(c, render),
 		c.option.AutoIndent,
 	)
-	handler := NewBaseHandler(line)
-	is := NewInputStream(handler)
+	c.line = line
+	handler := NewBaseHandler()
+	is := NewInputStream(handler, c)
 	render.render(line.GetRenderContext(), false, false)
 
 	resetFunc := func() {
@@ -259,7 +247,6 @@ func (c *CommandLine) ReadInput() (string, error) {
 	}
 
 	resetFunc()
-	c.OnReadInputStart()
 
 	//    开启 terminal raw mode
 	//    这种模式下会拿到用户原始的输入，比如输入 Ctrl-c 时，不会中断当前程序，而是拿到 Ctrl-c 的表示
@@ -292,9 +279,8 @@ func (c *CommandLine) ReadInput() (string, error) {
 			is.Feed(r)
 		case PollEventTimeout:
 			//    读取用户输入超时
-			c.OnInputTimeout(line.CreateCode())
 			if !is.FeedTimeout() {
-				//    没有触发事件，进入下一次循环
+				//    没有触发事件，进入下一次循环，减少没必要的重画
 				continue
 			}
 		}
@@ -330,7 +316,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 
 			}
 		}
-		if c.returnCode != nil {
+		if c.acceptFlag {
 			//    一般是用户按了 Enter
 			render.render(line.GetRenderContext(), false, true)
 			inputText = line.text()
@@ -340,66 +326,54 @@ func (c *CommandLine) ReadInput() (string, error) {
 		//    画出用户输入
 		render.render(line.GetRenderContext(), false, false)
 	}
+	//    返回用户输入的文本内容
 	c.redrawChannel = nil
-	c.OnReadInputEnd()
 	c.isReadingInput = false
 	DebugLog("return input: <%s>", inputText)
 	return inputText, nil
 }
 
-func (c *CommandLine) getCursorPosition() (int, int) {
-	c.Print("\x1b[6n")
-	var buf [32]byte
-	var i int
-	// 回复格式为 \x1b[A;BR
-	// A 和 B 就是光标的行和列
-	// todo 这里读取光标位置实际使用发现有一个问题
-	// 如果用户的输入没有及时处理（比如一直按着 A），下面的循环就会读到剩余的用户输入
-	// 而不是简单的 \x1b[A;BR 转义序列
-	for i = 0; i < 32; i++ {
-		c, err := c.reader.ReadByte()
-		ensureOk(err)
-		if c == 'R' {
-			break
-		} else {
-			buf[i] = c
-		}
+// GetLine 获取当前的 Line 对象，如果为 nil ，则 panic
+func (c *CommandLine) GetLine() *Line {
+	if c.line == nil {
+		panic("not found Line from CommandLine")
 	}
-	if buf[0] != '\x1b' || buf[1] != '[' {
-		panic(fmt.Sprintf("invalid cursor position report escape: %v", buf[:i]))
-	}
-	sepIndex := bytes.IndexByte(buf[:], ';')
-	if sepIndex == -1 {
-		panic(fmt.Sprintf("invalid cursor position report separator: %v", buf[:i]))
-	}
-	row, err := strconv.ParseInt(string(buf[2:sepIndex]), 10, 32)
-	ensureOk(err)
-	col, err := strconv.ParseInt(string(buf[sepIndex+1:i]), 10, 32)
-	ensureOk(err)
-	return int(row), int(col)
+	return c.line
 }
 
-// writeString 写入字符串到输出缓冲中
-func (c *CommandLine) writeString(s string) {
-	_, err := c.writer.WriteString(s)
-	ensureOk(err)
+// GetRenderer 获取当前的 Renderer 对象，如果为 nil ，则 panic
+func (c *CommandLine) GetRenderer() *Renderer {
+	if c.renderer == nil {
+		panic("not found Renderer from CommandLine")
+	}
+	return c.renderer
 }
 
+// Print 输出字符串，类似 fmt.Print
+func (c *CommandLine) Print(a ...any) {
+	_, err := fmt.Fprint(c.writer, a...)
+	panicIfError(err)
+	c.flush()
+}
+
+// Printf 输出格式化字符串，类似 fmt.Printf
+func (c *CommandLine) Printf(format string, a ...any) {
+	_, err := fmt.Fprintf(c.writer, format, a...)
+	panicIfError(err)
+	c.flush()
+}
+
+// Println 输出一行字符串，类似 fmt.Println
+func (c *CommandLine) Println(a ...any) {
+	_, err := fmt.Fprintln(c.writer, a...)
+	panicIfError(err)
+	c.flush()
+}
+
+// flush 写入缓冲数据
 func (c *CommandLine) flush() {
 	err := c.writer.Flush()
-	ensureOk(err)
-}
-
-// Print 输出字符串
-func (c *CommandLine) Print(s string) {
-	c.writeString(s)
-	c.flush()
-}
-
-// Printf 输出格式化字符串
-func (c *CommandLine) Printf(format string, a ...any) {
-	c.writeString(fmt.Sprintf(format, a...))
-	c.flush()
+	panicIfError(err)
 }
 
 func (c *CommandLine) SetOnAbort(action AbortAction) {
@@ -418,39 +392,6 @@ func (c *CommandLine) SetAbort() {
 	c.abortFlag = true
 }
 
-func (c *CommandLine) SetReturnValue(code Code) {
-	c.returnCode = code
-}
-
-func (c *CommandLine) enableMouseSupport() {
-	c.Print(terminalcode.EnableX10Mouse)
-}
-
-func (c *CommandLine) disableMouseSupport() {
-	c.Print(terminalcode.DisableX10Mouse)
-}
-
-type LineCallbacks struct {
-	commandLine *CommandLine
-	render      *rRenderer
-}
-
-func newLineCallbacks(commandLine *CommandLine, render *rRenderer) *LineCallbacks {
-	return &LineCallbacks{commandLine: commandLine, render: render}
-}
-
-func (l *LineCallbacks) ClearScreen() {
-	l.render.clear()
-}
-
-func (l *LineCallbacks) Exit() {
-	l.commandLine.SetExit()
-}
-
-func (l *LineCallbacks) Abort() {
-	l.commandLine.SetAbort()
-}
-
-func (l *LineCallbacks) ReturnInput(code Code) {
-	l.commandLine.SetReturnValue(code)
+func (c *CommandLine) SetAccept() {
+	c.acceptFlag = true
 }

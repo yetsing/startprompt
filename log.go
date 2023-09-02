@@ -30,13 +30,15 @@ func getCaller() *caller {
 }
 
 func DebugLog(format string, a ...any) {
-	msg := fmt.Sprintf(format, a...)
-	//c := getCaller()
-	//log.WithFields(log.Fields{
-	//	"method":   c.name,
-	//	"filename": fmt.Sprintf("%s:%d", c.filename, c.line),
-	//}).Debug(msg)
-	log.Debug(msg)
+	if log.IsLevelEnabled(log.DebugLevel) {
+		msg := fmt.Sprintf(format, a...)
+		//c := getCaller()
+		//log.WithFields(log.Fields{
+		//	"method":   c.name,
+		//	"filename": fmt.Sprintf("%s:%d", c.filename, c.line),
+		//}).Debug(msg)
+		log.Debug(msg)
+	}
 }
 
 func enableDebugLog() {
