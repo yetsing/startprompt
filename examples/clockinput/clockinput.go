@@ -39,7 +39,7 @@ func main() {
 	}
 	defer c.Close()
 	c.RunInExecutor(func() {
-		for {
+		for c.IsReadingInput() {
 			time.Sleep(1 * time.Second)
 			c.RequestRedraw()
 		}

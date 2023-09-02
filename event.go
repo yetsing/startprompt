@@ -1,5 +1,7 @@
 package startprompt
 
+import "time"
+
 type Event interface {
 	Type() EventType
 }
@@ -67,4 +69,16 @@ func (em *EventMouse) GetTCommandLine() *TCommandLine {
 		panic("not found TCommandLine from EventMouse")
 	}
 	return em.tcli
+}
+
+type EventDraw struct {
+	when time.Time
+}
+
+func NewEventDraw() *EventDraw {
+	return &EventDraw{time.Now()}
+}
+
+func (ed *EventDraw) When() time.Time {
+	return ed.when
 }

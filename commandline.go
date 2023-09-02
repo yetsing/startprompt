@@ -45,6 +45,7 @@ const (
 
 type CommandLineOption struct {
 	Schema        Schema
+	Handler       EventHandler
 	History       History
 	CodeFactory   CodeFactory
 	PromptFactory PromptFactory
@@ -60,6 +61,7 @@ type CommandLineOption struct {
 
 var defaultCommandLineOption = &CommandLineOption{
 	Schema:        defaultSchema,
+	Handler:       newBaseHandler(),
 	History:       NewMemHistory(),
 	CodeFactory:   newBaseCode,
 	PromptFactory: newBasePrompt,
@@ -72,6 +74,7 @@ var defaultCommandLineOption = &CommandLineOption{
 func (cp *CommandLineOption) copy() *CommandLineOption {
 	return &CommandLineOption{
 		Schema:        cp.Schema,
+		Handler:       cp.Handler,
 		History:       cp.History,
 		CodeFactory:   cp.CodeFactory,
 		PromptFactory: cp.PromptFactory,
@@ -85,6 +88,9 @@ func (cp *CommandLineOption) copy() *CommandLineOption {
 func (cp *CommandLineOption) update(other *CommandLineOption) {
 	if other.Schema != nil {
 		cp.Schema = other.Schema
+	}
+	if other.Handler != nil {
+		cp.Handler = other.Handler
 	}
 	if other.History != nil {
 		cp.History = other.History
@@ -108,10 +114,8 @@ func (cp *CommandLineOption) update(other *CommandLineOption) {
 type CommandLine struct {
 	reader *bufio.Reader
 	writer *bufio.Writer
-
 	//    配置选项
 	option *CommandLineOption
-
 	//    下面几个都用用于并发的情况
 	//    等待输入超时时间
 	inputTimeout time.Duration
@@ -122,12 +126,10 @@ type CommandLine struct {
 	readChannel   chan rune
 	//    是否正在读取用户输入
 	isReadingInput bool
-
 	//   下面几个对应用户的特殊操作：退出、丢弃、确定
 	exitFlag   bool
 	abortFlag  bool
 	acceptFlag bool
-
 	//    命令行当前使用的 Line 和 Render 对象
 	line     *Line
 	renderer *Renderer
@@ -192,7 +194,7 @@ func (c *CommandLine) Close() {
 
 }
 
-// RequestRedraw 请求重绘（线程安全）
+// RequestRedraw 请求重绘（ goroutine 安全）
 func (c *CommandLine) RequestRedraw() {
 	if c.redrawChannel != nil {
 		c.redrawChannel <- 'x'
@@ -227,22 +229,22 @@ func (c *CommandLine) ReadInput() (string, error) {
 	c.isReadingInput = true
 	c.redrawChannel = make(chan rune, 1024)
 
-	render := newRender(c.option.Schema, c.option.PromptFactory)
-	c.renderer = render
+	renderer := newRenderer(c.option.Schema, c.option.PromptFactory)
+	c.renderer = renderer
 	line := newLine(
 		c.option.CodeFactory,
 		c.option.History,
 		c.option.AutoIndent,
 	)
 	c.line = line
-	handler := NewBaseHandler()
+	handler := c.option.Handler
 	is := NewInputStream(handler, c)
-	render.render(line.GetRenderContext(), false, false)
+	renderer.render(line.GetRenderContext(), false, false)
 
 	resetFunc := func() {
 		is.Reset()
 		line.reset()
-		render.reset()
+		renderer.reset()
 		c.reset()
 	}
 
@@ -290,10 +292,10 @@ func (c *CommandLine) ReadInput() (string, error) {
 			//    一般是用户按了 Ctrl-D
 			switch c.option.OnExit {
 			case AbortActionReturnError:
-				render.render(line.GetRenderContext(), true, false)
+				renderer.render(line.GetRenderContext(), true, false)
 				return "", ExitError
 			case AbortActionReturnNone:
-				render.render(line.GetRenderContext(), true, false)
+				renderer.render(line.GetRenderContext(), true, false)
 				return "", nil
 			case AbortActionRetry:
 				resetFunc()
@@ -305,10 +307,10 @@ func (c *CommandLine) ReadInput() (string, error) {
 			//    一般是用户按了 Ctrl-C
 			switch c.option.OnAbort {
 			case AbortActionReturnError:
-				render.render(line.GetRenderContext(), true, false)
+				renderer.render(line.GetRenderContext(), true, false)
 				return "", AbortError
 			case AbortActionReturnNone:
-				render.render(line.GetRenderContext(), true, false)
+				renderer.render(line.GetRenderContext(), true, false)
 				return "", nil
 			case AbortActionRetry:
 				resetFunc()
@@ -318,13 +320,13 @@ func (c *CommandLine) ReadInput() (string, error) {
 		}
 		if c.acceptFlag {
 			//    一般是用户按了 Enter
-			render.render(line.GetRenderContext(), false, true)
+			renderer.render(line.GetRenderContext(), false, true)
 			inputText = line.text()
 			break
 		}
 
 		//    画出用户输入
-		render.render(line.GetRenderContext(), false, false)
+		renderer.render(line.GetRenderContext(), false, false)
 	}
 	//    返回用户输入的文本内容
 	c.redrawChannel = nil
@@ -394,4 +396,8 @@ func (c *CommandLine) SetAbort() {
 
 func (c *CommandLine) SetAccept() {
 	c.acceptFlag = true
+}
+
+func (c *CommandLine) IsReadingInput() bool {
+	return c.isReadingInput
 }

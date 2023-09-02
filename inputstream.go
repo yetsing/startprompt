@@ -37,7 +37,7 @@ func (is *InputStream) FeedTimeout() bool {
 	for i, r := range is.previous {
 		// 触发 Esc 事件
 		if r == '\x1b' {
-			is.callHandler(EventTypeEscapeAction, '\x1b')
+			is.callHandler(EventTypeEscape, '\x1b')
 		} else {
 			offset = i
 			break
@@ -83,7 +83,7 @@ func (is *InputStream) Feed(r rune) {
 			first := runeAt(is.previous, 0)
 			// 按下 Esc 键就会收到 '\x1b' ，所以这里需要判断一下特殊处理
 			if first == '\x1b' {
-				is.callHandler(EventTypeEscapeAction, '\x1b')
+				is.callHandler(EventTypeEscape, '\x1b')
 			} else {
 				// 如果不是快捷键操作，那么就是正常的输入
 				is.callHandler(EventTypeInsertChar, first)

@@ -162,7 +162,7 @@ func (c *cCompletionMenu) getMenuItemMetaToken(completion *Completion, isCurrent
 	return token.NewToken(ttype, " "+ljustWidth(completion.DisplayMeta, width))
 }
 
-func newRender(schema Schema, promptFactory PromptFactory) *Renderer {
+func newRenderer(schema Schema, promptFactory PromptFactory) *Renderer {
 	return &Renderer{
 		writer:        bufio.NewWriter(os.Stdout),
 		schema:        schema,
@@ -173,7 +173,7 @@ func newRender(schema Schema, promptFactory PromptFactory) *Renderer {
 type Renderer struct {
 	writer *bufio.Writer
 	schema Schema
-	//    光标在文本中的坐标
+	//    光标在输入文本中的坐标（这是一个相对于输入文本左上角的坐标）
 	cursorCoordinate Coordinate
 	promptFactory    PromptFactory
 }

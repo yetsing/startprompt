@@ -59,7 +59,7 @@ func (c *Char) output() string {
 }
 
 func (c *Char) width() int {
-	n := runewidth.StringWidth(string(c.char))
+	n := runewidth.StringWidth(c.char)
 	if n < 0 {
 		n = 0
 	}
@@ -130,6 +130,10 @@ func (s *Screen) CurrentHeight() int {
 		}
 		return my
 	}
+}
+
+func (s *Screen) GetBuffer() map[int]map[int]*Char {
+	return s.buffer
 }
 
 func (s *Screen) Output() (string, Coordinate) {

@@ -65,7 +65,7 @@ func TestInputStreamEscape(t *testing.T) {
 	stream.FeedData("\x1bhello")
 
 	testIntEqual(t, 1+len("hello"), len(handler.keys))
-	testKeyEventEqual(t, EventTypeEscapeAction, handler.keys[0].event)
+	testKeyEventEqual(t, EventTypeEscape, handler.keys[0].event)
 	testKeyEventEqual(t, EventTypeInsertChar, handler.keys[1].event)
 	testStringEqual(t, "\x1b", handler.keys[0].data)
 	testStringEqual(t, "h", handler.keys[1].data)
@@ -77,7 +77,7 @@ func TestInputStreamMetaArrows(t *testing.T) {
 	stream.FeedData("\x1b\x1b[D")
 
 	testIntEqual(t, 2, len(handler.keys))
-	testKeyEventEqual(t, EventTypeEscapeAction, handler.keys[0].event)
+	testKeyEventEqual(t, EventTypeEscape, handler.keys[0].event)
 	testKeyEventEqual(t, EventTypeArrowLeft, handler.keys[1].event)
 }
 
@@ -98,7 +98,7 @@ func TestInputStreamInvalid(t *testing.T) {
 	stream.FeedData("\x1b[*")
 
 	testIntEqual(t, 3, len(handler.keys))
-	testKeyEventEqual(t, EventTypeEscapeAction, handler.keys[0].event)
+	testKeyEventEqual(t, EventTypeEscape, handler.keys[0].event)
 	testKeyEventEqual(t, EventTypeInsertChar, handler.keys[1].event)
 	testKeyEventEqual(t, EventTypeInsertChar, handler.keys[2].event)
 	testStringEqual(t, "[", handler.keys[1].data)
