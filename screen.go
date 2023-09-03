@@ -46,8 +46,9 @@ var displayMapping = map[string]string{
 }
 
 type Char struct {
-	char  string
-	style terminalcolor.Style
+	char   string
+	style  terminalcolor.Style
+	cwidth int
 }
 
 func (c *Char) output() string {
@@ -59,11 +60,14 @@ func (c *Char) output() string {
 }
 
 func (c *Char) width() int {
-	n := runewidth.StringWidth(c.char)
-	if n < 0 {
-		n = 0
+	if c.cwidth == -1 {
+		n := runewidth.StringWidth(c.char)
+		if n < 0 {
+			n = 0
+		}
+		c.cwidth = n
 	}
-	return n
+	return c.cwidth
 }
 
 func newChar(r rune, style terminalcolor.Style) *Char {
@@ -72,8 +76,9 @@ func newChar(r rune, style terminalcolor.Style) *Char {
 		ch = displayMapping[ch]
 	}
 	return &Char{
-		char:  ch,
-		style: style,
+		char:   ch,
+		style:  style,
+		cwidth: -1,
 	}
 }
 
@@ -98,13 +103,15 @@ func NewScreen(schema Schema, size _Size) *Screen {
 // Screen 以坐标维度缓冲输出字符
 type Screen struct {
 	schema Schema
-	// {y: {x: Char}}
+	//    {y: {x: Char}}
 	buffer map[int]map[int]*Char
-	// 窗口宽度和高度
+	//    窗口宽度和高度
 	size _Size
-	// 窗口中光标坐标（是一个相对于文本左上角的坐标，而不是窗口左上角）
+	//    文本中光标坐标（是一个相对于文本左上角的坐标，而不是窗口左上角）
 	x int
 	y int
+	//    文本最后一行行尾的光标坐标（是一个相对于文本左上角的坐标，而不是窗口左上角）
+	maxCursorCoordinate Coordinate
 	// 文本中光标的行列
 	inputRow int
 	inputCol int
@@ -162,14 +169,14 @@ func (s *Screen) Output() (string, Coordinate) {
 
 			c := 0
 			for c < cols {
-				var grid *Char
+				var char *Char
 				if _, found := lineData[c]; found {
-					grid = lineData[c]
+					char = lineData[c]
 				} else {
-					grid = newChar(' ', nil)
+					char = newChar(' ', nil)
 				}
-				result = append(result, grid.output())
-				c += grid.width()
+				result = append(result, char.output())
+				c += char.width()
 			}
 			cursorPos.X = c
 		}
@@ -179,7 +186,7 @@ func (s *Screen) Output() (string, Coordinate) {
 			result = append(result, terminalcode.CRLF)
 		}
 	}
-	return strings.Join(result, ""), cursorPos
+	return strings.Join(result, ""), s.maxCursorCoordinate
 }
 
 // WriteTokensAtPos 在指定位置写入 token 数组
@@ -230,6 +237,11 @@ func (s *Screen) WriteRune(r rune, style terminalcolor.Style, saveInputPos bool)
 	if r == '\n' {
 		s.y++
 		s.x = 0
+		if s.y > s.maxCursorCoordinate.Y {
+			s.maxCursorCoordinate.Y = s.y
+			s.maxCursorCoordinate.X = 0
+		}
+
 		if saveInputPos {
 			s.inputRow++
 			s.inputCol = 0
@@ -256,6 +268,12 @@ func (s *Screen) writeAtPos(x int, y int, char *Char) {
 		s.buffer[y] = map[int]*Char{}
 	}
 	s.buffer[y][x] = char
+	if y > s.maxCursorCoordinate.Y {
+		s.maxCursorCoordinate.Y = y
+		s.maxCursorCoordinate.X = x + char.width()
+	} else if y == s.maxCursorCoordinate.Y && x+char.width() > s.maxCursorCoordinate.X {
+		s.maxCursorCoordinate.X = x + char.width()
+	}
 }
 
 // saveInputPos 保存行列到 xy 坐标的映射

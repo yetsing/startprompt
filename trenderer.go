@@ -61,9 +61,7 @@ func (tr *TRenderer) getNewScreen(renderContext *RenderContext) *Screen {
 	return screen
 }
 
-func (tr *TRenderer) render(renderContext *RenderContext, abort bool, accept bool) {
-	//    写入屏幕输出
-	screen := tr.getNewScreen(renderContext)
+func (tr *TRenderer) renderScreen(screen *Screen) {
 	buffer := screen.GetBuffer()
 	for iy, icolumn := range buffer {
 		y := tr.cursorCoordinate.Y + iy
@@ -96,24 +94,48 @@ func (tr *TRenderer) render(renderContext *RenderContext, abort bool, accept boo
 			}
 		}
 	}
+}
 
+func (tr *TRenderer) render(renderContext *RenderContext, abort bool, accept bool) {
+	//    写入屏幕输出
+	screen := tr.getNewScreen(renderContext)
+	tr.renderScreen(screen)
 	//    用户输入完毕或者放弃输入或者退出，另起一行
 	if accept || abort {
 		tr.cursorCoordinate.X = 0
-		tr.cursorCoordinate.Y += screen.inputRow + 1
+		tr.cursorCoordinate.Y += screen.maxCursorCoordinate.Y + 1
 		tr.tscreen.ShowCursor(tr.cursorCoordinate.X, tr.cursorCoordinate.Y)
+		DebugLog("render abort ShowCursor x=%d, y=%d", tr.cursorCoordinate.X, tr.cursorCoordinate.Y)
 	} else {
 		//    移动光标到正确位置
 		cursorCoordinate := screen.getCursorCoordinate(
 			renderContext.document.CursorPositionRow(),
 			renderContext.document.CursorPositionCol())
+		DebugLog("cursor coordinate in text: %+v", cursorCoordinate)
 		tr.tscreen.ShowCursor(
 			tr.cursorCoordinate.X+cursorCoordinate.X,
 			tr.cursorCoordinate.Y+cursorCoordinate.Y,
 		)
+		DebugLog("render normal ShowCursor x=%d, y=%d",
+			tr.cursorCoordinate.X+cursorCoordinate.X,
+			tr.cursorCoordinate.Y+cursorCoordinate.Y)
 	}
-
 	tr.tscreen.Show()
+}
+
+func (tr *TRenderer) renderOutput(output string) {
+	if len(output) == 0 {
+		return
+	}
+	screen := NewScreen(tr.schema, tr.getSize())
+	tk := token.NewToken(token.Text, output)
+	screen.WriteTokens([]token.Token{tk}, false)
+	tr.renderScreen(screen)
+	tr.cursorCoordinate.X = 0
+	tr.cursorCoordinate.Y += screen.maxCursorCoordinate.Y
+	tr.tscreen.ShowCursor(tr.cursorCoordinate.X, tr.cursorCoordinate.Y)
+	tr.tscreen.Show()
+	DebugLog("renderOutput ShowCursor x=%d, y=%d", tr.cursorCoordinate.X, tr.cursorCoordinate.Y)
 }
 
 func (tr *TRenderer) Resize() {

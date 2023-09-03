@@ -14,6 +14,11 @@ type inputStruct struct {
 	err  error
 }
 
+type outputStruct struct {
+	text  string
+	flush bool
+}
+
 var defaultTCommandLineOption = &CommandLineOption{
 	Schema:        defaultSchema,
 	Handler:       newTBaseEventHandler(),
@@ -37,6 +42,7 @@ type TCommandLine struct {
 	readError error
 	//    输入 channel
 	inputChannel  chan *inputStruct
+	outputChannel chan outputStruct
 	redrawChannel chan struct{}
 	closeChannel  chan struct{}
 	//    下面两个用于 tcell.Screen ChannelEvents
@@ -88,9 +94,13 @@ func NewTCommandLine(option *CommandLineOption) (*TCommandLine, error) {
 		option:  actualOption,
 
 		inputChannel:  make(chan *inputStruct),
+		redrawChannel: make(chan struct{}, 1024),
 		closeChannel:  make(chan struct{}),
+		outputChannel: make(chan outputStruct, 8),
 		tEventChannel: make(chan tcell.Event),
 		tQuitChannel:  make(chan struct{}),
+
+		renderer: newTRenderer(s, actualOption.Schema, actualOption.PromptFactory),
 	}
 	c.setup()
 	return c, nil
@@ -122,19 +132,17 @@ func (tc *TCommandLine) reset() {
 
 // Close 关闭命令行，恢复终端到原先的模式
 func (tc *TCommandLine) Close() {
-	maybePanic := recover()
 	tc.running = false
+	close(tc.redrawChannel)
+	close(tc.outputChannel)
 	close(tc.closeChannel)
 	close(tc.tQuitChannel)
 	tc.tscreen.Fini()
-	if maybePanic != nil {
-		panic(maybePanic)
-	}
 }
 
 // RequestRedraw 请求重绘（ goroutine 安全）
 func (tc *TCommandLine) RequestRedraw() {
-	if tc.redrawChannel != nil {
+	if tc.isReadingInput {
 		tc.redrawChannel <- struct{}{}
 	}
 }
@@ -149,33 +157,36 @@ func (tc *TCommandLine) ReadInput() (string, error) {
 	if tc.isReadingInput {
 		return "", fmt.Errorf("already reading input")
 	}
-	tc.redrawChannel = make(chan struct{}, 1024)
 	tc.isReadingInput = true
 
+	tc.outputChannel <- outputStruct{"", true}
 	in := <-tc.inputChannel
 
 	tc.isReadingInput = false
-	close(tc.redrawChannel)
-	tc.redrawChannel = nil
 	return in.text, in.err
 }
 
 func (tc *TCommandLine) run() {
 	tc.running = true
+	tc.flushOutput()
 	for tc.running {
 		tc.runLoop()
+		tc.flushOutput()
 	}
+	tc.flushOutput()
+	//    如果有事件没有处理，tcell.Screen.Fini 会卡在那里
+	tc.discardTEvent()
 }
 
 func (tc *TCommandLine) runLoop() {
-	renderer := newTRenderer(tc.tscreen, tc.option.Schema, tc.option.PromptFactory)
-	tc.renderer = renderer
+	renderer := tc.renderer
 	line := newLine(
 		tc.option.CodeFactory,
 		tc.option.History,
 		tc.option.AutoIndent,
 	)
 	tc.line = line
+
 	renderer.render(line.GetRenderContext(), false, false)
 
 	resetFunc := func() {
@@ -189,18 +200,24 @@ func (tc *TCommandLine) runLoop() {
 	for {
 		select {
 		case <-tc.closeChannel:
+			DebugLog("close")
 			return
 		case <-tc.redrawChannel:
+			DebugLog("redraw")
 			//    将缓冲的信息都读取出来，以免循环中不断触发
 			loop := len(tc.redrawChannel)
 			for i := 0; i < loop; i++ {
 				<-tc.redrawChannel
 			}
-			//    画出用户输入
+			//    渲染用户输入
 			renderer.render(line.GetRenderContext(), false, false)
 			continue
 		case ev := <-tc.tEventChannel:
-			tc.emitEvent(ev)
+			//    没有触发事件，直接进入下一次循环，避免没必要的渲染
+			if !tc.emitEvent(ev) {
+				continue
+			}
+			DebugLog("emit event: %+v", ev)
 		}
 
 		//    处理特别的输入事件结果
@@ -251,7 +268,7 @@ func (tc *TCommandLine) runLoop() {
 	}
 }
 
-func (tc *TCommandLine) emitEvent(tevent tcell.Event) {
+func (tc *TCommandLine) emitEvent(tevent tcell.Event) bool {
 	switch ev := tevent.(type) {
 	case *tcell.EventResize:
 		tc.renderer.Resize()
@@ -264,10 +281,12 @@ func (tc *TCommandLine) emitEvent(tevent tcell.Event) {
 			}
 			event := NewEventKey(eventType, data, nil, tc)
 			tc.option.Handler.Handle(event)
+			return true
 		} else {
 			DebugLog("unsupported tcell.EventKey: %+v", ev)
 		}
 	}
+	return false
 }
 
 func (tc *TCommandLine) sendInput(text string, err error) {
@@ -291,16 +310,37 @@ func (tc *TCommandLine) GetRenderer() *TRenderer {
 	return tc.renderer
 }
 
+func (tc *TCommandLine) flushOutput() {
+	ch := tc.outputChannel
+	for output := range ch {
+		if output.flush {
+			break
+		}
+		tc.renderer.renderOutput(output.text)
+	}
+}
+
+func (tc *TCommandLine) discardTEvent() {
+	for range tc.tEventChannel {
+
+	}
+}
+
+func (tc *TCommandLine) Write(p []byte) (int, error) {
+	tc.outputChannel <- outputStruct{string(p), false}
+	return len(p), nil
+}
+
 func (tc *TCommandLine) Print(a ...any) {
-	fmt.Print(a...)
+	_, _ = fmt.Fprint(tc, a...)
 }
 
 func (tc *TCommandLine) Println(a ...any) {
-	fmt.Println(a...)
+	_, _ = fmt.Fprintln(tc, a...)
 }
 
 func (tc *TCommandLine) Printf(format string, a ...any) {
-	fmt.Printf(format, a...)
+	_, _ = fmt.Fprintf(tc, format, a...)
 }
 
 func (tc *TCommandLine) SetOnAbort(action AbortAction) {
