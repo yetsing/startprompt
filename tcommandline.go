@@ -3,6 +3,7 @@ package startprompt
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -40,11 +41,14 @@ type TCommandLine struct {
 	inputTimeout time.Duration
 	//    读取错误
 	readError error
-	//    输入 channel
-	inputChannel  chan *inputStruct
+	//    传递输入 channel
+	inputChannel chan *inputStruct
+	//    传递输出 channel
 	outputChannel chan outputStruct
+	//    传递重新渲染事件 channel
 	redrawChannel chan struct{}
-	closeChannel  chan struct{}
+	//    传递关闭事件 channel
+	closeChannel chan struct{}
 	//    下面两个用于 tcell.Screen ChannelEvents
 	tEventChannel chan tcell.Event
 	tQuitChannel  chan struct{}
@@ -58,6 +62,8 @@ type TCommandLine struct {
 	//    命令行当前使用的 Line 和 TRenderer 对象
 	line     *Line
 	renderer *TRenderer
+	//    wg 用来等待协程结束
+	wg sync.WaitGroup
 }
 
 // NewTCommandLine 新建命令行对象
@@ -94,10 +100,10 @@ func NewTCommandLine(option *CommandLineOption) (*TCommandLine, error) {
 		option:  actualOption,
 
 		inputChannel:  make(chan *inputStruct),
-		redrawChannel: make(chan struct{}, 1024),
+		redrawChannel: make(chan struct{}, 16),
 		closeChannel:  make(chan struct{}),
-		outputChannel: make(chan outputStruct, 8),
-		tEventChannel: make(chan tcell.Event),
+		outputChannel: make(chan outputStruct, 16),
+		tEventChannel: make(chan tcell.Event, 16),
 		tQuitChannel:  make(chan struct{}),
 
 		renderer: newTRenderer(s, actualOption.Schema, actualOption.PromptFactory),
@@ -113,6 +119,8 @@ func (tc *TCommandLine) setup() {
 	} else {
 		disableDebugLog()
 	}
+	tc.wg.Add(1)
+	tc.running = true
 	//    根据 ChannelEvents 注释，需要单独开 goroutine 调用
 	go func() {
 		tc.tscreen.ChannelEvents(tc.tEventChannel, tc.tQuitChannel)
@@ -132,11 +140,14 @@ func (tc *TCommandLine) reset() {
 
 // Close 关闭命令行，恢复终端到原先的模式
 func (tc *TCommandLine) Close() {
+	tc.tscreen.DisablePaste()
+	tc.tscreen.DisableMouse()
 	tc.running = false
+	close(tc.closeChannel)
 	close(tc.redrawChannel)
 	close(tc.outputChannel)
-	close(tc.closeChannel)
-	close(tc.tQuitChannel)
+	//close(tc.tQuitChannel)
+	tc.wg.Wait()
 	tc.tscreen.Fini()
 }
 
@@ -167,15 +178,21 @@ func (tc *TCommandLine) ReadInput() (string, error) {
 }
 
 func (tc *TCommandLine) run() {
-	tc.running = true
+	defer tc.wg.Done()
 	tc.flushOutput()
 	for tc.running {
 		tc.runLoop()
 		tc.flushOutput()
+		//    后台处理鼠标事件
 	}
 	tc.flushOutput()
-	//    如果有事件没有处理，tcell.Screen.Fini 会卡在那里
+	//    继续读取事件
+	//    因为 tcell 内部也是用 channel 传递的事件
+	//    如果有大量事件上报，又没有读取事件，tcell 内部就可能卡在 channel send 发送
+	//    从而导致调用 tcell.Screen.Fini 卡住（tcell 内部开了 goroutine 读取事件发送到 channel ， Fini 会等待这些 goroutine 结束）
+	//    比如说开启鼠标支持，在 Close 前调用了 time.Sleep ，这个时候就会有大量的鼠标事件堆积
 	tc.discardTEvent()
+	DebugLog("run stopped")
 }
 
 func (tc *TCommandLine) runLoop() {
@@ -321,8 +338,15 @@ func (tc *TCommandLine) flushOutput() {
 }
 
 func (tc *TCommandLine) discardTEvent() {
-	for range tc.tEventChannel {
-
+	//    这是使用超时，而不是等待 channel 关闭
+	//    是因为我们要在 tcell.Screen.Fini 之前调用这个方法，丢弃掉 tcell 内部 channel 堆积的事件
+	//    调用 tcell.Screen.Fini 之后， tEventChannel 会被关闭，这样我们就无法读取到 tcell 内部 channel 堆积的事件
+	for {
+		select {
+		case <-tc.tEventChannel:
+		case <-time.After(1 * time.Second):
+			return
+		}
 	}
 }
 

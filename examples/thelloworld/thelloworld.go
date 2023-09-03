@@ -1,5 +1,9 @@
 package main
 
+/*
+helloworld 例子
+*/
+
 import (
 	"fmt"
 
