@@ -176,6 +176,8 @@ var tkeyMapping = map[tcell.Key]EventType{
 	tcell.KeyEnd:     EventTypeEnd,
 	tcell.KeyBacktab: EventTypeBacktab,
 	tcell.KeyEsc:     EventTypeEscape,
+	tcell.KeyDelete:  EventTypeDeleteAction,
+	tcell.KeyDEL:     EventTypeBackspace,
 
 	tcell.KeyCtrlSpace:      EventTypeCtrlSpace,
 	tcell.KeyCtrlA:          EventTypeCtrlA,

@@ -37,10 +37,6 @@ type TCommandLine struct {
 	//    配置选项
 	option *CommandLineOption
 	//    下面几个都用用于并发的情况
-	//    等待输入超时时间
-	inputTimeout time.Duration
-	//    读取错误
-	readError error
 	//    传递输入 channel
 	inputChannel chan *inputStruct
 	//    传递输出 channel
@@ -135,19 +131,18 @@ func (tc *TCommandLine) reset() {
 	tc.exitFlag = false
 	tc.abortFlag = false
 	tc.acceptFlag = false
-	tc.readError = nil
 }
 
 // Close 关闭命令行，恢复终端到原先的模式
 func (tc *TCommandLine) Close() {
-	tc.tscreen.DisablePaste()
+	//    取消鼠标事件的上报（鼠标移动会上报大量事件，减少后面 discardTEvent 丢弃的事件）
 	tc.tscreen.DisableMouse()
 	tc.running = false
 	close(tc.closeChannel)
 	close(tc.redrawChannel)
 	close(tc.outputChannel)
-	//close(tc.tQuitChannel)
 	tc.wg.Wait()
+	tc.discardTEvent()
 	tc.tscreen.Fini()
 }
 
@@ -191,7 +186,6 @@ func (tc *TCommandLine) run() {
 	//    如果有大量事件上报，又没有读取事件，tcell 内部就可能卡在 channel send 发送
 	//    从而导致调用 tcell.Screen.Fini 卡住（tcell 内部开了 goroutine 读取事件发送到 channel ， Fini 会等待这些 goroutine 结束）
 	//    比如说开启鼠标支持，在 Close 前调用了 time.Sleep ，这个时候就会有大量的鼠标事件堆积
-	tc.discardTEvent()
 	DebugLog("run stopped")
 }
 
@@ -234,7 +228,6 @@ func (tc *TCommandLine) runLoop() {
 			if !tc.emitEvent(ev) {
 				continue
 			}
-			DebugLog("emit event: %+v", ev)
 		}
 
 		//    处理特别的输入事件结果
@@ -341,10 +334,11 @@ func (tc *TCommandLine) discardTEvent() {
 	//    这是使用超时，而不是等待 channel 关闭
 	//    是因为我们要在 tcell.Screen.Fini 之前调用这个方法，丢弃掉 tcell 内部 channel 堆积的事件
 	//    调用 tcell.Screen.Fini 之后， tEventChannel 会被关闭，这样我们就无法读取到 tcell 内部 channel 堆积的事件
+	timer := time.NewTimer(100 * time.Millisecond)
 	for {
 		select {
 		case <-tc.tEventChannel:
-		case <-time.After(1 * time.Second):
+		case <-timer.C:
 			return
 		}
 	}
