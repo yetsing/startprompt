@@ -14,7 +14,11 @@ type TRenderer struct {
 	//    保存至今为止全部的输出
 	//    {y: {x: Char}}
 	totalBuffer map[int]map[int]*Char
-	//    光标在窗口中的坐标
+	//    当前输入在 totalBuffer 的坐标（输入左上角）
+	bufferCoordinate Coordinate
+	//    渲染 totalBuffer 中 >= bufferOffsetY 的内容
+	bufferOffsetY int
+	//    当前输入在窗口中的坐标（输入左上角）
 	cursorCoordinate Coordinate
 }
 
@@ -64,16 +68,16 @@ func (tr *TRenderer) getNewScreen(renderContext *RenderContext) *Screen {
 func (tr *TRenderer) renderScreen(screen *Screen) {
 	buffer := screen.GetBuffer()
 	for iy, icolumn := range buffer {
-		y := tr.cursorCoordinate.Y + iy
+		y := tr.bufferCoordinate.Y + iy
 		lineData := make(map[int]*Char, len(icolumn))
 		tr.totalBuffer[y] = lineData
 		for ix, char := range icolumn {
-			x := tr.cursorCoordinate.X + ix
+			x := tr.bufferCoordinate.X + ix
 			lineData[x] = char
 		}
 	}
 	size := tr.getSize()
-	for y := tr.cursorCoordinate.Y; y < size.height; y++ {
+	for y := tr.bufferCoordinate.Y; y < size.height; y++ {
 		lineData, found := tr.totalBuffer[y]
 		if found {
 			for x := 0; x < size.width; x++ {
@@ -104,17 +108,17 @@ func (tr *TRenderer) render(renderContext *RenderContext, abort bool, accept boo
 	tr.renderScreen(screen)
 	//    用户输入完毕或者放弃输入或者退出，另起一行
 	if accept || abort {
-		tr.cursorCoordinate.X = 0
-		tr.cursorCoordinate.Y += screen.maxCursorCoordinate.Y + 1
-		tr.tscreen.ShowCursor(tr.cursorCoordinate.X, tr.cursorCoordinate.Y)
+		tr.bufferCoordinate.X = 0
+		tr.bufferCoordinate.Y += screen.maxCursorCoordinate.Y + 1
+		tr.tscreen.ShowCursor(tr.bufferCoordinate.X, tr.bufferCoordinate.Y)
 	} else {
 		//    移动光标到正确位置
 		cursorCoordinate := screen.getCursorCoordinate(
 			renderContext.document.CursorPositionRow(),
 			renderContext.document.CursorPositionCol())
 		tr.tscreen.ShowCursor(
-			tr.cursorCoordinate.X+cursorCoordinate.X,
-			tr.cursorCoordinate.Y+cursorCoordinate.Y,
+			tr.bufferCoordinate.X+cursorCoordinate.X,
+			tr.bufferCoordinate.Y+cursorCoordinate.Y,
 		)
 	}
 	tr.tscreen.Show()
@@ -128,9 +132,9 @@ func (tr *TRenderer) renderOutput(output string) {
 	tk := token.NewToken(token.Text, output)
 	screen.WriteTokens([]token.Token{tk}, false)
 	tr.renderScreen(screen)
-	tr.cursorCoordinate.X = 0
-	tr.cursorCoordinate.Y += screen.maxCursorCoordinate.Y
-	tr.tscreen.ShowCursor(tr.cursorCoordinate.X, tr.cursorCoordinate.Y)
+	tr.bufferCoordinate.X = 0
+	tr.bufferCoordinate.Y += screen.maxCursorCoordinate.Y
+	tr.tscreen.ShowCursor(tr.bufferCoordinate.X, tr.bufferCoordinate.Y)
 	tr.tscreen.Show()
 }
 
