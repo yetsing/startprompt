@@ -236,9 +236,11 @@ func (tc *TCommandLine) runLoop() {
 			switch tc.option.OnExit {
 			case AbortActionReturnError:
 				renderer.render(line.GetRenderContext(), true, false)
+				tc.sendInput("", ExitError)
 				return
 			case AbortActionReturnNone:
 				renderer.render(line.GetRenderContext(), true, false)
+				tc.sendInput("", nil)
 				return
 			case AbortActionRetry:
 				resetFunc()

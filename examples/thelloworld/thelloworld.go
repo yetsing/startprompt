@@ -26,5 +26,5 @@ func main() {
 		return
 	}
 	c.Println("echo:", line)
-	time.Sleep(10 * time.Second)
+	time.Sleep(1 * time.Second)
 }

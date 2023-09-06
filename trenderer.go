@@ -20,6 +20,8 @@ type TRenderer struct {
 	bufferOffsetY int
 	//    当前输入在窗口中的坐标（输入左上角）
 	cursorCoordinate Coordinate
+	//    在窗口中显示的光标坐标
+	showCursorCoordinate Coordinate
 }
 
 func newTRenderer(tscreen tcell.Screen, schema Schema, promptFactory PromptFactory) *TRenderer {
@@ -65,7 +67,7 @@ func (tr *TRenderer) getNewScreen(renderContext *RenderContext) *Screen {
 	return screen
 }
 
-func (tr *TRenderer) renderScreen(screen *Screen) {
+func (tr *TRenderer) updateWithScreen(screen *Screen) {
 	buffer := screen.GetBuffer()
 	for iy, icolumn := range buffer {
 		y := tr.bufferCoordinate.Y + iy
@@ -76,9 +78,81 @@ func (tr *TRenderer) renderScreen(screen *Screen) {
 			lineData[x] = char
 		}
 	}
+}
+
+func (tr *TRenderer) render(renderContext *RenderContext, abort bool, accept bool) {
+	//    写入屏幕输出
+	screen := tr.getNewScreen(renderContext)
+	tr.updateWithScreen(screen)
+	//    用户输入完毕或者放弃输入或者退出，另起一行
+	if accept || abort {
+		tr.bufferCoordinate.X = 0
+		tr.bufferCoordinate.Y += screen.maxCursorCoordinate.Y + 1
+		tr.cursorCoordinate.X = 0
+		tr.cursorCoordinate.Y += screen.maxCursorCoordinate.Y + 1
+		tr.showCursorCoordinate = tr.cursorCoordinate
+	} else {
+		//    移动光标到正确位置
+		cursorCoordinate := screen.getCursorCoordinate(
+			renderContext.document.CursorPositionRow(),
+			renderContext.document.CursorPositionCol())
+		tr.showCursorCoordinate.X = tr.cursorCoordinate.X + cursorCoordinate.X
+		tr.showCursorCoordinate.Y = tr.cursorCoordinate.Y + cursorCoordinate.Y
+	}
+	tr.Show()
+}
+
+func (tr *TRenderer) renderOutput(output string) {
+	if len(output) == 0 {
+		return
+	}
+	screen := NewScreen(tr.schema, tr.getSize())
+	tk := token.NewToken(token.Text, output)
+	screen.WriteTokens([]token.Token{tk}, false)
+	tr.updateWithScreen(screen)
+	tr.bufferCoordinate.X = 0
+	tr.bufferCoordinate.Y += screen.maxCursorCoordinate.Y
+	tr.cursorCoordinate.X = 0
+	tr.cursorCoordinate.Y += screen.maxCursorCoordinate.Y
+	tr.showCursorCoordinate = tr.cursorCoordinate
+	tr.Show()
+}
+
+func (tr *TRenderer) Resize() {
+	tr.tscreen.Sync()
+}
+
+func (tr *TRenderer) Clear() {
+	tr.ScrollUp(tr.cursorCoordinate.Y)
+}
+
+// ScrollUp 文本向上滚动
+func (tr *TRenderer) ScrollUp(n int) {
+	if tr.cursorCoordinate.Y < n {
+		tr.bufferOffsetY += tr.cursorCoordinate.Y
+		tr.cursorCoordinate.Y = 0
+	} else {
+		tr.bufferOffsetY += n
+		tr.cursorCoordinate.Y -= n
+	}
+}
+
+// ScrollDown 文本向下滚动
+func (tr *TRenderer) ScrollDown(n int) {
+	if tr.bufferOffsetY < n {
+		tr.bufferOffsetY = 0
+		tr.cursorCoordinate.Y += tr.bufferOffsetY
+	} else {
+		tr.bufferOffsetY -= n
+		tr.cursorCoordinate.Y += n
+	}
+}
+
+func (tr *TRenderer) Show() {
+	tr.tscreen.Clear()
 	size := tr.getSize()
-	for y := tr.bufferCoordinate.Y; y < size.height; y++ {
-		lineData, found := tr.totalBuffer[y]
+	for y := 0; y < size.height; y++ {
+		lineData, found := tr.totalBuffer[y+tr.bufferOffsetY]
 		if found {
 			for x := 0; x < size.width; x++ {
 				char, found := lineData[x]
@@ -90,60 +164,13 @@ func (tr *TRenderer) renderScreen(screen *Screen) {
 					for i, r := range char.char {
 						tr.tscreen.SetContent(x+i, y, r, nil, tstyle)
 					}
-				} else {
-					tr.tscreen.SetContent(x, y, ' ', nil, tcell.StyleDefault)
+					x += char.width() - 1
 				}
-			}
-		} else {
-			for x := 0; x < size.width; x++ {
-				tr.tscreen.SetContent(x, y, ' ', nil, tcell.StyleDefault)
 			}
 		}
 	}
-}
-
-func (tr *TRenderer) render(renderContext *RenderContext, abort bool, accept bool) {
-	//    写入屏幕输出
-	screen := tr.getNewScreen(renderContext)
-	tr.renderScreen(screen)
-	//    用户输入完毕或者放弃输入或者退出，另起一行
-	if accept || abort {
-		tr.bufferCoordinate.X = 0
-		tr.bufferCoordinate.Y += screen.maxCursorCoordinate.Y + 1
-		tr.tscreen.ShowCursor(tr.bufferCoordinate.X, tr.bufferCoordinate.Y)
-	} else {
-		//    移动光标到正确位置
-		cursorCoordinate := screen.getCursorCoordinate(
-			renderContext.document.CursorPositionRow(),
-			renderContext.document.CursorPositionCol())
-		tr.tscreen.ShowCursor(
-			tr.bufferCoordinate.X+cursorCoordinate.X,
-			tr.bufferCoordinate.Y+cursorCoordinate.Y,
-		)
-	}
+	tr.tscreen.ShowCursor(tr.showCursorCoordinate.X, tr.showCursorCoordinate.Y)
 	tr.tscreen.Show()
-}
-
-func (tr *TRenderer) renderOutput(output string) {
-	if len(output) == 0 {
-		return
-	}
-	screen := NewScreen(tr.schema, tr.getSize())
-	tk := token.NewToken(token.Text, output)
-	screen.WriteTokens([]token.Token{tk}, false)
-	tr.renderScreen(screen)
-	tr.bufferCoordinate.X = 0
-	tr.bufferCoordinate.Y += screen.maxCursorCoordinate.Y
-	tr.tscreen.ShowCursor(tr.bufferCoordinate.X, tr.bufferCoordinate.Y)
-	tr.tscreen.Show()
-}
-
-func (tr *TRenderer) Resize() {
-	tr.tscreen.Sync()
-}
-
-func (tr *TRenderer) Clear() {
-
 }
 
 func (tr *TRenderer) reset() {
