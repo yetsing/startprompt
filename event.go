@@ -46,9 +46,24 @@ func (ek *EventKey) GetTCommandLine() *TCommandLine {
 
 // EventMouse 代表鼠标事件
 type EventMouse struct {
-	eventType EventType
-	cli       *CommandLine
-	tcli      *TCommandLine
+	eventType  EventType
+	coordinate Coordinate
+	cli        *CommandLine
+	tcli       *TCommandLine
+}
+
+func NewEventMouse(
+	eventType EventType,
+	coordinate Coordinate,
+	cli *CommandLine,
+	tcli *TCommandLine,
+) *EventMouse {
+	return &EventMouse{
+		eventType:  eventType,
+		coordinate: coordinate,
+		cli:        cli,
+		tcli:       tcli,
+	}
 }
 
 func (em *EventMouse) Type() EventType {
@@ -67,4 +82,8 @@ func (em *EventMouse) GetTCommandLine() *TCommandLine {
 		panic("not found TCommandLine from EventMouse")
 	}
 	return em.tcli
+}
+
+func (em *EventMouse) GetCoordinate() Coordinate {
+	return em.coordinate
 }

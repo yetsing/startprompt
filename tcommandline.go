@@ -3,6 +3,7 @@ package startprompt
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -135,6 +136,7 @@ func (tc *TCommandLine) reset() {
 
 // Close 关闭命令行，恢复终端到原先的模式
 func (tc *TCommandLine) Close() {
+	maybePanic := recover()
 	//    取消鼠标事件的上报（鼠标移动会上报大量事件，减少后面 discardTEvent 丢弃的事件）
 	tc.tscreen.DisableMouse()
 	tc.running = false
@@ -144,6 +146,10 @@ func (tc *TCommandLine) Close() {
 	tc.wg.Wait()
 	tc.discardTEvent()
 	tc.tscreen.Fini()
+	if maybePanic != nil {
+		DebugLog("panic: %v\n%s", maybePanic, string(debug.Stack()))
+		panic(maybePanic)
+	}
 }
 
 // RequestRedraw 请求重绘（ goroutine 安全）
@@ -173,7 +179,14 @@ func (tc *TCommandLine) ReadInput() (string, error) {
 }
 
 func (tc *TCommandLine) run() {
-	defer tc.wg.Done()
+	defer func() {
+		maybePanic := recover()
+		tc.wg.Done()
+		if maybePanic != nil {
+			DebugLog("panic: %v\n%s", maybePanic, string(debug.Stack()))
+			panic(maybePanic)
+		}
+	}()
 	tc.flushOutput()
 	for tc.running {
 		tc.runLoop()
@@ -292,10 +305,26 @@ func (tc *TCommandLine) emitEvent(tevent tcell.Event) bool {
 				data = []rune{ev.Rune()}
 			}
 			event := NewEventKey(eventType, data, nil, tc)
+			DebugLog("emit event=%s", event.Type())
 			tc.option.Handler.Handle(event)
 			return true
 		} else {
 			DebugLog("unsupported tcell.EventKey: %+v", ev)
+		}
+	case *tcell.EventMouse:
+		x, y := ev.Position()
+		coor := Coordinate{x, y}
+		switch ev.Buttons() {
+		case tcell.WheelUp:
+			event := NewEventMouse(EventMouseScrollUp, coor, nil, tc)
+			DebugLog("emit event=%s", event.Type())
+			tc.option.Handler.Handle(event)
+			return true
+		case tcell.WheelDown:
+			event := NewEventMouse(EventMouseScrollDown, coor, nil, tc)
+			DebugLog("emit event=%s", event.Type())
+			tc.option.Handler.Handle(event)
+			return true
 		}
 	}
 	return false

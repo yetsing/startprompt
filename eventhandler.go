@@ -10,6 +10,7 @@ type TBaseEventHandler struct {
 	//    最后处理的事件
 	lastEvent EventType
 	//    保存每次事件的 Line 和 TCommandLine ，省去各种方法的参数传递
+	//    这两个值需要从事件中获取
 	line *Line
 	tcli *TCommandLine
 }
@@ -19,16 +20,34 @@ func newTBaseEventHandler() *TBaseEventHandler {
 }
 
 func (tb *TBaseEventHandler) Handle(event Event) {
-	DebugLog("handle event=%s", event.Type())
-	ek, ok := event.(*EventKey)
-	if !ok {
+	switch ev := event.(type) {
+	case *EventKey:
+		tb.HandleEventKey(ev)
+		tb.lastEvent = ev.Type()
+	case *EventMouse:
+		tb.HandleEventMouse(ev)
+		tb.lastEvent = ev.Type()
+	default:
 		DebugLog("not support event=%s %+v", event.Type(), event)
-		return
 	}
+}
+
+func (tb *TBaseEventHandler) HandleEventMouse(em *EventMouse) {
+	tb.tcli = em.GetTCommandLine()
+	tb.line = tb.tcli.GetLine()
+	eventType := em.Type()
+	switch eventType {
+	case EventMouseScrollUp:
+		tb.tcli.GetRenderer().ScrollUp(1)
+	case EventMouseScrollDown:
+		tb.tcli.GetRenderer().ScrollDown(1)
+	}
+}
+
+func (tb *TBaseEventHandler) HandleEventKey(ek *EventKey) {
 	eventType := ek.Type()
 	tb.tcli = ek.GetTCommandLine()
 	tb.line = tb.tcli.GetLine()
-	tb.lastEvent = eventType
 
 	if tb.needsToSave(eventType) {
 		tb.line.SaveToUndoStack()

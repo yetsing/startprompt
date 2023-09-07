@@ -148,6 +148,7 @@ func (tr *TRenderer) ScrollDown(n int) {
 	}
 }
 
+// Show 展示到窗口画面
 func (tr *TRenderer) Show() {
 	tr.tscreen.Clear()
 	size := tr.getSize()
