@@ -123,28 +123,28 @@ func (tr *TRenderer) Resize() {
 }
 
 func (tr *TRenderer) Clear() {
-	tr.ScrollUp(tr.cursorCoordinate.Y)
+	tr.WheelDown(tr.cursorCoordinate.Y)
 }
 
-// ScrollUp 文本向上滚动
-func (tr *TRenderer) ScrollUp(n int) {
-	if tr.cursorCoordinate.Y < n {
-		tr.bufferOffsetY += tr.cursorCoordinate.Y
-		tr.cursorCoordinate.Y = 0
-	} else {
-		tr.bufferOffsetY += n
-		tr.cursorCoordinate.Y -= n
-	}
-}
-
-// ScrollDown 文本向下滚动
-func (tr *TRenderer) ScrollDown(n int) {
+// WheelUp 滚动条向上，文本向下
+func (tr *TRenderer) WheelUp(n int) {
 	if tr.bufferOffsetY < n {
 		tr.bufferOffsetY = 0
 		tr.cursorCoordinate.Y += tr.bufferOffsetY
 	} else {
 		tr.bufferOffsetY -= n
 		tr.cursorCoordinate.Y += n
+	}
+}
+
+// WheelDown 滚动条向下，文本向上
+func (tr *TRenderer) WheelDown(n int) {
+	if tr.cursorCoordinate.Y < n {
+		tr.bufferOffsetY += tr.cursorCoordinate.Y
+		tr.cursorCoordinate.Y = 0
+	} else {
+		tr.bufferOffsetY += n
+		tr.cursorCoordinate.Y -= n
 	}
 }
 

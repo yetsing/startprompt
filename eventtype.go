@@ -74,8 +74,8 @@ var eventTypeStr = []string{
 	"<escape>",
 	"<insert_char>",
 
-	"<scroll_up>",
-	"<scroll_down>",
+	"<wheel_up>",
+	"<wheel_down>",
 }
 
 func (a EventType) String() string {
@@ -161,8 +161,8 @@ const (
 	EventTypeEscape
 	EventTypeInsertChar
 
-	EventMouseScrollUp
-	EventMouseScrollDown
+	EventMouseWheelUp
+	EventMouseWheelDown
 
 	EventTypeTab = EventTypeCtrlI
 )

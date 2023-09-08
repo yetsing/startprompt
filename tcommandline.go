@@ -316,12 +316,12 @@ func (tc *TCommandLine) emitEvent(tevent tcell.Event) bool {
 		coor := Coordinate{x, y}
 		switch ev.Buttons() {
 		case tcell.WheelUp:
-			event := NewEventMouse(EventMouseScrollUp, coor, nil, tc)
+			event := NewEventMouse(EventMouseWheelUp, coor, nil, tc)
 			DebugLog("emit event=%s", event.Type())
 			tc.option.Handler.Handle(event)
 			return true
 		case tcell.WheelDown:
-			event := NewEventMouse(EventMouseScrollDown, coor, nil, tc)
+			event := NewEventMouse(EventMouseWheelDown, coor, nil, tc)
 			DebugLog("emit event=%s", event.Type())
 			tc.option.Handler.Handle(event)
 			return true

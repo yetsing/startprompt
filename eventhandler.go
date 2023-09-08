@@ -37,10 +37,10 @@ func (tb *TBaseEventHandler) HandleEventMouse(em *EventMouse) {
 	tb.line = tb.tcli.GetLine()
 	eventType := em.Type()
 	switch eventType {
-	case EventMouseScrollUp:
-		tb.tcli.GetRenderer().ScrollUp(1)
-	case EventMouseScrollDown:
-		tb.tcli.GetRenderer().ScrollDown(1)
+	case EventMouseWheelUp:
+		tb.tcli.GetRenderer().WheelUp(1)
+	case EventMouseWheelDown:
+		tb.tcli.GetRenderer().WheelDown(1)
 	}
 }
 
