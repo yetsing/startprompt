@@ -33,7 +33,7 @@ func newCompletionMenu(screen *Screen, completeState *cCompletionState, maxHeigh
 
 // 返回光标的位置坐标
 func (c *cCompletionMenu) getOrigin() Coordinate {
-	return c.screen.getCursorCoordinate(
+	return c.screen.getCoordinate(
 		c.completeState.originalDocument.CursorPositionRow(),
 		c.completeState.originalDocument.CursorPositionCol())
 }
@@ -239,7 +239,7 @@ func (r *Renderer) renderToStr(renderContext *RenderContext, abort bool, accept 
 		buf.WriteString(terminalcode.CRLF)
 	} else {
 		// 移动光标到正确位置
-		cursorCoordinate := screen.getCursorCoordinate(
+		cursorCoordinate := screen.getCoordinate(
 			renderContext.document.CursorPositionRow(),
 			renderContext.document.CursorPositionCol())
 		if lastCoordinate.Y > cursorCoordinate.Y {

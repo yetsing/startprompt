@@ -1,7 +1,6 @@
 package startprompt
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/mattn/go-runewidth"
@@ -87,16 +86,22 @@ type Coordinate struct {
 	Y int
 }
 
+type Location struct {
+	Row int
+	Col int
+}
+
 func NewScreen(schema Schema, size _Size) *Screen {
 	return &Screen{
-		schema:    schema,
-		buffer:    map[int]map[int]*Char{},
-		size:      size,
-		x:         0,
-		y:         0,
-		inputRow:  0,
-		inputCol:  0,
-		cursorMap: map[Coordinate]Coordinate{},
+		schema:        schema,
+		buffer:        map[int]map[int]*Char{},
+		size:          size,
+		x:             0,
+		y:             0,
+		inputRow:      0,
+		inputCol:      0,
+		coordinateMap: map[Location]Coordinate{},
+		locationMap:   map[Coordinate]Location{},
 	}
 }
 
@@ -115,8 +120,12 @@ type Screen struct {
 	// 文本中光标的行列
 	inputRow int
 	inputCol int
-	// 保存光标行列到 yx 的映射
-	cursorMap map[Coordinate]Coordinate
+	// 如果一行太长，在显示上会变成两行；还有像中文这些宽度大于 1 的字符
+	// 导致行列和 xy 不是完全一致的
+	// 保存光标行列到 xy 的映射
+	coordinateMap map[Location]Coordinate
+	// 保存 xy 到行列的映射
+	locationMap map[Coordinate]Location
 
 	secondLinePrefixFunc func() []token.Token
 }
@@ -144,8 +153,6 @@ func (s *Screen) GetBuffer() map[int]map[int]*Char {
 }
 
 func (s *Screen) Output() (string, Coordinate) {
-	// 如果我们不手动移动光标位置，那么就需要一个个字符地输出，这样光标才会自动向右（向下）移动
-	// 那么在 buffer 里面的坐标之间的空档，我们都要输出空白字符用来填充
 	var result []string
 	var cursorPos Coordinate
 	// 统计一下有多少行，其实就是等于最大的 y + 1
@@ -173,6 +180,8 @@ func (s *Screen) Output() (string, Coordinate) {
 				if _, found := lineData[c]; found {
 					char = lineData[c]
 				} else {
+					// 如果我们不手动移动光标位置，那么就需要一个个字符地输出，这样光标才会自动向右（向下）移动
+					// 那么在 buffer 里面的坐标之间的空档，我们都要输出空白字符用来填充
 					char = newChar(' ', nil)
 				}
 				result = append(result, char.output())
@@ -205,6 +214,7 @@ func (s *Screen) WriteTokensAtPos(x int, y int, tokens []token.Token) {
 }
 
 // WriteTokens 写入 Token 数组， saveInputPos: 是否保存输入位置
+// 对于用户输入的内容才会保存输入位置，以便确定光标的位置，想补全列表就不属于输入
 func (s *Screen) WriteTokens(tokens []token.Token, saveInputPos bool) {
 	for _, t := range tokens {
 		if t.TypeIs(token.EOF) {
@@ -276,21 +286,21 @@ func (s *Screen) writeAtPos(x int, y int, char *Char) {
 	}
 }
 
-// saveInputPos 保存行列到 xy 坐标的映射
+// saveInputPos 保存行列和 xy 坐标的双向映射
 func (s *Screen) saveInputPos() {
-	s.cursorMap[Coordinate{s.inputCol, s.inputRow}] = Coordinate{s.x, s.y}
+	s.coordinateMap[Location{s.inputRow, s.inputCol}] = Coordinate{s.x, s.y}
+	s.locationMap[Coordinate{s.x, s.y}] = Location{s.inputRow, s.inputCol}
 }
 
 func (s *Screen) setSecondLinePrefix(secondLinePrefixFunc func() []token.Token) {
 	s.secondLinePrefixFunc = secondLinePrefixFunc
 }
 
-// getCursorCoordinate 根据行列坐标得到 xy 坐标
-func (s *Screen) getCursorCoordinate(row int, col int) Coordinate {
-	return s.cursorMap[Coordinate{col, row}]
+// getCoordinate 根据行列得到 xy 坐标
+func (s *Screen) getCoordinate(row int, col int) Coordinate {
+	return s.coordinateMap[Location{row, col}]
 }
 
-// 返回 cursorMap 的字符串，用于调试
-func (s *Screen) cursorMapS() string {
-	return fmt.Sprintf("%v", s.cursorMap)
+func (s *Screen) getLocationMap() map[Coordinate]Location {
+	return s.locationMap
 }

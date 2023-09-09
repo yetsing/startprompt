@@ -11,6 +11,8 @@ type TRenderer struct {
 	schema        Schema
 	promptFactory PromptFactory
 
+	//    xy 坐标到输入行列的映射
+	inputLocationMap map[Coordinate]Location
 	//    保存至今为止全部的输出
 	//    {y: {x: Char}}
 	totalBuffer map[int]map[int]*Char
@@ -19,7 +21,7 @@ type TRenderer struct {
 	//    渲染 totalBuffer 中 >= bufferOffsetY 的内容
 	bufferOffsetY int
 	//    当前输入在窗口中的坐标（输入左上角）
-	cursorCoordinate Coordinate
+	inputCoordinate Coordinate
 	//    在窗口中显示的光标坐标
 	showCursorCoordinate Coordinate
 }
@@ -78,6 +80,15 @@ func (tr *TRenderer) updateWithScreen(screen *Screen) {
 			lineData[x] = char
 		}
 	}
+	locationMap := screen.getLocationMap()
+	tr.inputLocationMap = make(map[Coordinate]Location, len(locationMap))
+	for coordinate, location := range locationMap {
+		newCoordinate := Coordinate{
+			X: coordinate.X + tr.inputCoordinate.X,
+			Y: coordinate.Y + tr.inputCoordinate.Y,
+		}
+		tr.inputLocationMap[newCoordinate] = location
+	}
 }
 
 func (tr *TRenderer) render(renderContext *RenderContext, abort bool, accept bool) {
@@ -88,16 +99,16 @@ func (tr *TRenderer) render(renderContext *RenderContext, abort bool, accept boo
 	if accept || abort {
 		tr.bufferCoordinate.X = 0
 		tr.bufferCoordinate.Y += screen.maxCursorCoordinate.Y + 1
-		tr.cursorCoordinate.X = 0
-		tr.cursorCoordinate.Y += screen.maxCursorCoordinate.Y + 1
-		tr.showCursorCoordinate = tr.cursorCoordinate
+		tr.inputCoordinate.X = 0
+		tr.inputCoordinate.Y += screen.maxCursorCoordinate.Y + 1
+		tr.showCursorCoordinate = tr.inputCoordinate
 	} else {
 		//    移动光标到正确位置
-		cursorCoordinate := screen.getCursorCoordinate(
+		cursorCoordinate := screen.getCoordinate(
 			renderContext.document.CursorPositionRow(),
 			renderContext.document.CursorPositionCol())
-		tr.showCursorCoordinate.X = tr.cursorCoordinate.X + cursorCoordinate.X
-		tr.showCursorCoordinate.Y = tr.cursorCoordinate.Y + cursorCoordinate.Y
+		tr.showCursorCoordinate.X = tr.inputCoordinate.X + cursorCoordinate.X
+		tr.showCursorCoordinate.Y = tr.inputCoordinate.Y + cursorCoordinate.Y
 	}
 	tr.Show()
 }
@@ -112,9 +123,9 @@ func (tr *TRenderer) renderOutput(output string) {
 	tr.updateWithScreen(screen)
 	tr.bufferCoordinate.X = 0
 	tr.bufferCoordinate.Y += screen.maxCursorCoordinate.Y
-	tr.cursorCoordinate.X = 0
-	tr.cursorCoordinate.Y += screen.maxCursorCoordinate.Y
-	tr.showCursorCoordinate = tr.cursorCoordinate
+	tr.inputCoordinate.X = 0
+	tr.inputCoordinate.Y += screen.maxCursorCoordinate.Y
+	tr.showCursorCoordinate = tr.inputCoordinate
 	tr.Show()
 }
 
@@ -123,33 +134,34 @@ func (tr *TRenderer) Resize() {
 }
 
 func (tr *TRenderer) Clear() {
-	tr.WheelDown(tr.cursorCoordinate.Y)
+	tr.WheelDown(tr.inputCoordinate.Y)
 }
 
 // WheelUp 滚动条向上，文本向下
 func (tr *TRenderer) WheelUp(n int) {
 	if tr.bufferOffsetY < n {
 		tr.bufferOffsetY = 0
-		tr.cursorCoordinate.Y += tr.bufferOffsetY
+		tr.inputCoordinate.Y += tr.bufferOffsetY
 	} else {
 		tr.bufferOffsetY -= n
-		tr.cursorCoordinate.Y += n
+		tr.inputCoordinate.Y += n
 	}
 }
 
 // WheelDown 滚动条向下，文本向上
 func (tr *TRenderer) WheelDown(n int) {
-	if tr.cursorCoordinate.Y < n {
-		tr.bufferOffsetY += tr.cursorCoordinate.Y
-		tr.cursorCoordinate.Y = 0
+	if tr.inputCoordinate.Y < n {
+		tr.bufferOffsetY += tr.inputCoordinate.Y
+		tr.inputCoordinate.Y = 0
 	} else {
 		tr.bufferOffsetY += n
-		tr.cursorCoordinate.Y -= n
+		tr.inputCoordinate.Y -= n
 	}
 }
 
 // Show 展示到窗口画面
 func (tr *TRenderer) Show() {
+	tr.tscreen.HideCursor()
 	tr.tscreen.Clear()
 	size := tr.getSize()
 	for y := 0; y < size.height; y++ {
@@ -176,4 +188,24 @@ func (tr *TRenderer) Show() {
 
 func (tr *TRenderer) reset() {
 
+}
+
+// GetClosetLocation 返回跟坐标最接近的行列，返回的布尔值是否可以找到
+func (tr *TRenderer) GetClosetLocation(coordinate Coordinate) (Location, bool) {
+	// 在 (x-4, y) ~ (x+4, y) 的范围内寻找行列
+	end := maxInt(0, coordinate.X-4)
+	for x := coordinate.X; x >= end; x-- {
+		loc, found := tr.inputLocationMap[Coordinate{x, coordinate.Y}]
+		if found {
+			return loc, found
+		}
+	}
+	end = coordinate.X + 4
+	for x := coordinate.X; x <= end; x++ {
+		loc, found := tr.inputLocationMap[Coordinate{x, coordinate.Y}]
+		if found {
+			return loc, found
+		}
+	}
+	return Location{-1, -1}, false
 }

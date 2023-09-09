@@ -723,3 +723,8 @@ func (l *Line) ToMode(modes ...linemode.LineMode) {
 		l.AcceptComplete()
 	}
 }
+
+func (l *Line) SetLocation(location Location) {
+	pos := l.Document().translateRowColToIndex(location.Row, location.Col)
+	l.SetCursorPosition(pos)
+}

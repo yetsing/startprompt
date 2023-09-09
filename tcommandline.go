@@ -34,7 +34,16 @@ var defaultTCommandLineOption = &CommandLineOption{
 }
 
 type TCommandLine struct {
-	tscreen tcell.Screen
+	//    命令行当前使用的 Line 和 TRenderer 对象
+	line     *Line
+	renderer *TRenderer
+	tscreen  tcell.Screen
+	//    是否按下鼠标左键
+	mousePrimaryPressed bool
+	lastPrimaryEvent    *tcell.EventMouse
+	lastDblclickEvent   *tcell.EventMouse
+	//    点击间隔，用来判断鼠标双击、三击等
+	clickInterval time.Duration
 	//    配置选项
 	option *CommandLineOption
 	//    下面几个都用用于并发的情况
@@ -56,9 +65,6 @@ type TCommandLine struct {
 	exitFlag   bool
 	abortFlag  bool
 	acceptFlag bool
-	//    命令行当前使用的 Line 和 TRenderer 对象
-	line     *Line
-	renderer *TRenderer
 	//    wg 用来等待协程结束
 	wg sync.WaitGroup
 }
@@ -111,6 +117,7 @@ func NewTCommandLine(option *CommandLineOption) (*TCommandLine, error) {
 
 func (tc *TCommandLine) setup() {
 	tc.reset()
+	tc.clickInterval = 1 * time.Second
 	if tc.option.EnableDebug {
 		enableDebugLog()
 	} else {
@@ -294,6 +301,7 @@ func (tc *TCommandLine) runLoop() {
 }
 
 func (tc *TCommandLine) emitEvent(tevent tcell.Event) bool {
+	var event Event
 	switch ev := tevent.(type) {
 	case *tcell.EventResize:
 		tc.renderer.Resize()
@@ -304,10 +312,7 @@ func (tc *TCommandLine) emitEvent(tevent tcell.Event) bool {
 			if ev.Key() == tcell.KeyRune {
 				data = []rune{ev.Rune()}
 			}
-			event := NewEventKey(eventType, data, nil, tc)
-			DebugLog("emit event=%s", event.Type())
-			tc.option.Handler.Handle(event)
-			return true
+			event = NewEventKey(eventType, data, nil, tc)
 		} else {
 			DebugLog("unsupported tcell.EventKey: %+v", ev)
 		}
@@ -315,19 +320,61 @@ func (tc *TCommandLine) emitEvent(tevent tcell.Event) bool {
 		x, y := ev.Position()
 		coor := Coordinate{x, y}
 		switch ev.Buttons() {
+		case tcell.ButtonPrimary:
+			if tc.mousePrimaryPressed {
+				event = NewEventMouse(EventTypeMouseMove, coor, nil, tc)
+			} else if tc.IsDblClick(ev) {
+				event = NewEventMouse(EventTypeMouseDblclick, coor, nil, tc)
+				tc.mousePrimaryPressed = false
+				tc.lastPrimaryEvent = nil
+				tc.lastDblclickEvent = ev
+			} else if tc.IsTripleClick(ev) {
+				event = NewEventMouse(EventTypeMouseTripleClick, coor, nil, tc)
+				tc.mousePrimaryPressed = false
+				tc.lastPrimaryEvent = nil
+				tc.lastDblclickEvent = nil
+			} else {
+				event = NewEventMouse(EventTypeMouseDown, coor, nil, tc)
+				tc.mousePrimaryPressed = true
+				tc.lastPrimaryEvent = ev
+			}
+		case tcell.ButtonNone:
+			if tc.mousePrimaryPressed {
+				event = NewEventMouse(EventTypeMouseUp, coor, nil, tc)
+				tc.mousePrimaryPressed = false
+			}
 		case tcell.WheelUp:
-			event := NewEventMouse(EventMouseWheelUp, coor, nil, tc)
-			DebugLog("emit event=%s", event.Type())
-			tc.option.Handler.Handle(event)
-			return true
+			event = NewEventMouse(EventTypeMouseWheelUp, coor, nil, tc)
 		case tcell.WheelDown:
-			event := NewEventMouse(EventMouseWheelDown, coor, nil, tc)
-			DebugLog("emit event=%s", event.Type())
-			tc.option.Handler.Handle(event)
-			return true
+			event = NewEventMouse(EventTypeMouseWheelDown, coor, nil, tc)
 		}
 	}
-	return false
+	if event == nil {
+		return false
+	}
+	DebugLog("emit event=%s", event.Type())
+	tc.option.Handler.Handle(event)
+	return true
+}
+
+func (tc *TCommandLine) IsDblClick(ev *tcell.EventMouse) bool {
+	//    clickInterval 内相同位置按下鼠标左键两次
+	if tc.lastPrimaryEvent == nil {
+		return false
+	}
+	lastX, lastY := tc.lastPrimaryEvent.Position()
+	x, y := ev.Position()
+	return lastX == x && lastY == y && tc.lastPrimaryEvent.When().Add(tc.clickInterval).After(time.Now())
+}
+
+func (tc *TCommandLine) IsTripleClick(ev *tcell.EventMouse) bool {
+	//    clickInterval 内相同位置按下鼠标左键三次
+	if tc.lastDblclickEvent == nil {
+		return false
+	}
+	lastX, lastY := tc.lastDblclickEvent.Position()
+	x, y := ev.Position()
+	return lastX == x && lastY == y && tc.lastDblclickEvent.When().Add(tc.clickInterval).After(time.Now())
 }
 
 func (tc *TCommandLine) sendInput(text string, err error) {

@@ -6,10 +6,10 @@ type Event interface {
 
 // EventKey 代表键盘事件
 type EventKey struct {
-	eventType EventType
-	data      []rune
 	cli       *CommandLine
 	tcli      *TCommandLine
+	data      []rune
+	eventType EventType
 }
 
 //goland:noinspection GoUnusedExportedFunction
@@ -46,10 +46,10 @@ func (ek *EventKey) GetTCommandLine() *TCommandLine {
 
 // EventMouse 代表鼠标事件
 type EventMouse struct {
-	eventType  EventType
-	coordinate Coordinate
 	cli        *CommandLine
 	tcli       *TCommandLine
+	coordinate Coordinate
+	eventType  EventType
 }
 
 func NewEventMouse(

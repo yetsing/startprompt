@@ -74,8 +74,13 @@ var eventTypeStr = []string{
 	"<escape>",
 	"<insert_char>",
 
-	"<wheel_up>",
-	"<wheel_down>",
+	"<mouse_wheel_up>",
+	"<mouse_wheel_down>",
+	"<mouse_up>",
+	"<mouse_down>",
+	"<mouse_move>",
+	"<mouse_dblclick>",
+	"<mouse_triple_click>",
 }
 
 func (a EventType) String() string {
@@ -161,8 +166,19 @@ const (
 	EventTypeEscape
 	EventTypeInsertChar
 
-	EventMouseWheelUp
-	EventMouseWheelDown
+	// EventTypeMouseWheelUp EventTypeMouseWheelDown 鼠标滚轮
+	EventTypeMouseWheelUp
+	EventTypeMouseWheelDown
+	// EventTypeMouseUp 松开鼠标左键
+	EventTypeMouseUp
+	// EventTypeMouseDown 按下鼠标左键
+	EventTypeMouseDown
+	// EventTypeMouseMove 按下鼠标左键并且移动
+	EventTypeMouseMove
+	// EventTypeMouseDblclick 鼠标左键双击
+	EventTypeMouseDblclick
+	// EventTypeMouseTripleClick 鼠标左键三击
+	EventTypeMouseTripleClick
 
 	EventTypeTab = EventTypeCtrlI
 )

@@ -164,6 +164,7 @@ func NewCommandLine(option *CommandLineOption) (*CommandLine, error) {
 
 func (c *CommandLine) setup() {
 	c.reset()
+	c.inputTimeout = 100 * time.Millisecond
 	if c.option.EnableDebug {
 		enableDebugLog()
 	} else {
@@ -212,6 +213,7 @@ func (c *CommandLine) pollEvent() (rune, PollEvent) {
 		return r, PollEventInput
 	case <-c.redrawChannel:
 		//    将缓冲的信息都读取出来，以免循环中不断触发
+		//    或许加个重绘时间限制更好，比如 1s 只能重画 30 次？
 		loop := len(c.redrawChannel)
 		for i := 0; i < loop; i++ {
 			<-c.redrawChannel

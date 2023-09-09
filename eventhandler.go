@@ -37,10 +37,16 @@ func (tb *TBaseEventHandler) HandleEventMouse(em *EventMouse) {
 	tb.line = tb.tcli.GetLine()
 	eventType := em.Type()
 	switch eventType {
-	case EventMouseWheelUp:
+	case EventTypeMouseWheelUp:
 		tb.tcli.GetRenderer().WheelUp(1)
-	case EventMouseWheelDown:
+	case EventTypeMouseWheelDown:
 		tb.tcli.GetRenderer().WheelDown(1)
+	case EventTypeMouseDown:
+		loc, found := tb.tcli.GetRenderer().GetClosetLocation(em.GetCoordinate())
+		//    找到行列位置，说明点击位置在当前输入区域
+		if found {
+			tb.line.SetLocation(loc)
+		}
 	}
 }
 
