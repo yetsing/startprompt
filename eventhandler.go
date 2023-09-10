@@ -47,6 +47,8 @@ func (tb *TBaseEventHandler) HandleEventMouse(em *EventMouse) {
 		if found {
 			tb.line.SetLocation(loc)
 		}
+	case EventTypeMouseDblclick:
+		tb.tcli.GetRenderer().SelectWord(em.GetCoordinate())
 	}
 }
 

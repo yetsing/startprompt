@@ -1,15 +1,40 @@
 package startprompt
 
 import (
+	"fmt"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/yetsing/startprompt/terminalcolor"
 	"github.com/yetsing/startprompt/token"
 )
 
+type Area struct {
+	start Coordinate
+	end   Coordinate
+}
+
+func (a *Area) Contains(coordinate Coordinate) bool {
+	if a.start.Y == a.end.Y {
+		return a.start.Y == coordinate.Y && a.start.X <= coordinate.X && coordinate.X < a.end.X
+	}
+	if coordinate.Y == a.start.Y {
+		return a.start.X <= coordinate.X
+	} else if coordinate.Y == a.end.Y {
+		return coordinate.X < a.end.X
+	}
+	return coordinate.Y > a.start.Y && coordinate.Y < a.end.Y
+}
+
+type XChar struct {
+	char *Char
+	x    int
+}
+
 type TRenderer struct {
 	tscreen       tcell.Screen
 	schema        Schema
 	promptFactory PromptFactory
+	selection     *Area
 
 	//    xy 坐标到输入行列的映射
 	inputLocationMap map[Coordinate]Location
@@ -32,6 +57,7 @@ func newTRenderer(tscreen tcell.Screen, schema Schema, promptFactory PromptFacto
 		tscreen:       tscreen,
 		schema:        schema,
 		promptFactory: promptFactory,
+		selection:     &Area{Coordinate{0, 0}, Coordinate{0, 0}},
 	}
 }
 
@@ -174,6 +200,9 @@ func (tr *TRenderer) Show() {
 					if colorStyle, ok := char.style.(*terminalcolor.ColorStyle); ok {
 						tstyle = terminalcolor.ToTcellStyle(colorStyle)
 					}
+					if tr.selection.Contains(Coordinate{x, y}) {
+						tstyle = tstyle.Reverse(true)
+					}
 					for i, r := range char.char {
 						tr.tscreen.SetContent(x+i, y, r, nil, tstyle)
 					}
@@ -208,4 +237,88 @@ func (tr *TRenderer) GetClosetLocation(coordinate Coordinate) (Location, bool) {
 		}
 	}
 	return Location{-1, -1}, false
+}
+
+// InInputArea 判断坐标是否在当前输入区域内（以行为准）
+func (tr *TRenderer) InInputArea(coordinate Coordinate) bool {
+	width, _ := tr.tscreen.Size()
+	for x := 0; x < width; x++ {
+		if _, found := tr.inputLocationMap[Coordinate{x, coordinate.Y}]; found {
+			return true
+		}
+	}
+	return false
+}
+
+// InTextArea 判断坐标是否在文本区域内（以行为准）
+func (tr *TRenderer) InTextArea(coordinate Coordinate) bool {
+	by := coordinate.Y + tr.bufferOffsetY
+	_, found := tr.totalBuffer[by]
+	return found
+}
+
+// 返回指定坐标处的字符开始坐标，调用者要保证坐标在文本区域内
+func (tr *TRenderer) getCharCoordinate(coordinate Coordinate) Coordinate {
+	by := coordinate.Y + tr.bufferOffsetY
+	lineData, found := tr.totalBuffer[by]
+	if !found {
+		panic(fmt.Errorf("invalid coordinate: %+v", coordinate))
+	}
+	for x := coordinate.X; x >= 0; x-- {
+		_, found := lineData[x]
+		if found {
+			return Coordinate{x, coordinate.Y}
+		}
+	}
+	return Coordinate{0, coordinate.Y}
+}
+
+// SelectWord 选择指定坐标处的单词（鼠标双击触发）
+func (tr *TRenderer) SelectWord(coordinate Coordinate) {
+	by := coordinate.Y + tr.bufferOffsetY
+	lineData, found := tr.totalBuffer[by]
+	if !found {
+		//    点击处没有文本
+		return
+	}
+	//    获取单词的开始和结束
+	width, _ := tr.tscreen.Size()
+	DebugLog("select word coordinate: %+v", coordinate)
+	coordinate = tr.getCharCoordinate(coordinate)
+	DebugLog("select word adjust coordinate: %+v", coordinate)
+	var end Coordinate
+	for x := coordinate.X; x < width; x++ {
+		char, found := lineData[x]
+		if !found {
+			end = Coordinate{x, coordinate.Y}
+			break
+		}
+		if IsSpace(char.char) {
+			end = Coordinate{x, coordinate.Y}
+			break
+		}
+		x += char.width() - 1
+	}
+
+	var start Coordinate
+	for x := coordinate.X; x >= 0; x-- {
+		char, found := lineData[x]
+		if !found {
+			start = Coordinate{x, coordinate.Y}
+			break
+		}
+		if IsSpace(char.char) {
+			start = Coordinate{x + char.width(), coordinate.Y}
+			break
+		}
+		x -= char.width() - 1
+	}
+	if start.equal(&end) {
+		return
+	}
+	DebugLog("select word start: %+v, end: %+v", start, end)
+	tr.selection = &Area{
+		start: start,
+		end:   end,
+	}
 }

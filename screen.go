@@ -86,6 +86,10 @@ type Coordinate struct {
 	Y int
 }
 
+func (c *Coordinate) equal(other *Coordinate) bool {
+	return c.X == other.X && c.Y == other.Y
+}
+
 type Location struct {
 	Row int
 	Col int
