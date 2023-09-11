@@ -116,11 +116,11 @@ type Screen struct {
 	buffer map[int]map[int]*Char
 	//    窗口宽度和高度
 	size _Size
-	//    文本中光标坐标（是一个相对于文本左上角的坐标，而不是窗口左上角）
+	//    文本中光标坐标（是一个相对于文本左上角的坐标）
 	x int
 	y int
-	//    文本最后一行行尾的光标坐标（是一个相对于文本左上角的坐标，而不是窗口左上角）
-	maxCursorCoordinate Coordinate
+	//    文本最后一行行尾的光标坐标（是一个相对于文本左上角的坐标）
+	lastCoordinate Coordinate
 	// 文本中光标的行列
 	inputRow int
 	inputCol int
@@ -199,7 +199,7 @@ func (s *Screen) Output() (string, Coordinate) {
 			result = append(result, terminalcode.CRLF)
 		}
 	}
-	return strings.Join(result, ""), s.maxCursorCoordinate
+	return strings.Join(result, ""), s.lastCoordinate
 }
 
 // WriteTokensAtPos 在指定位置写入 token 数组
@@ -251,9 +251,9 @@ func (s *Screen) WriteRune(r rune, style terminalcolor.Style, saveInputPos bool)
 	if r == '\n' {
 		s.y++
 		s.x = 0
-		if s.y > s.maxCursorCoordinate.Y {
-			s.maxCursorCoordinate.Y = s.y
-			s.maxCursorCoordinate.X = 0
+		if s.y > s.lastCoordinate.Y {
+			s.lastCoordinate.Y = s.y
+			s.lastCoordinate.X = 0
 		}
 
 		if saveInputPos {
@@ -282,11 +282,11 @@ func (s *Screen) writeAtPos(x int, y int, char *Char) {
 		s.buffer[y] = map[int]*Char{}
 	}
 	s.buffer[y][x] = char
-	if y > s.maxCursorCoordinate.Y {
-		s.maxCursorCoordinate.Y = y
-		s.maxCursorCoordinate.X = x + char.width()
-	} else if y == s.maxCursorCoordinate.Y && x+char.width() > s.maxCursorCoordinate.X {
-		s.maxCursorCoordinate.X = x + char.width()
+	if y > s.lastCoordinate.Y {
+		s.lastCoordinate.Y = y
+		s.lastCoordinate.X = x + char.width()
+	} else if y == s.lastCoordinate.Y && x+char.width() > s.lastCoordinate.X {
+		s.lastCoordinate.X = x + char.width()
 	}
 }
 
@@ -307,4 +307,12 @@ func (s *Screen) getCoordinate(row int, col int) Coordinate {
 
 func (s *Screen) getLocationMap() map[Coordinate]Location {
 	return s.locationMap
+}
+
+func (s *Screen) getLastCoordinate() Coordinate {
+	return s.lastCoordinate
+}
+
+func (s *Screen) getWidth() int {
+	return s.size.width
 }

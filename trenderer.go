@@ -30,11 +30,94 @@ type XChar struct {
 	x    int
 }
 
+type ScrollTextView struct {
+	//    行列二维数组
+	data [][]XChar
+	//    当前输入左上角在 buffer 第几行
+	inputY int
+	//    y 轴上的偏移量（滚动量）
+	offsetY int
+	//    宽度
+	width int
+}
+
+func NewScrollTextView() *ScrollTextView {
+	return &ScrollTextView{data: [][]XChar{nil}}
+}
+
+func (tv *ScrollTextView) growTo(y int) {
+	for i := len(tv.data) - 1; i < y; i++ {
+		tv.data = append(tv.data, []XChar{})
+	}
+}
+
+func (tv *ScrollTextView) appendAt(vy int, xchar XChar) {
+	tv.data[vy] = append(tv.data[vy], xchar)
+}
+
+func (tv *ScrollTextView) readScreen(screen *Screen) {
+	lastCoordinate := screen.getLastCoordinate()
+	width := screen.getWidth()
+	buffer := screen.GetBuffer()
+	for y := 0; y <= lastCoordinate.Y; y++ {
+		vy := tv.inputY + y
+		tv.growTo(vy)
+		lineBuffer, found := buffer[y]
+		if found {
+			x := 0
+			for x < width {
+				var char *Char
+				if _, found := lineBuffer[x]; found {
+					char = lineBuffer[x]
+				} else {
+					char = newChar(' ', nil)
+				}
+				tv.appendAt(vy, XChar{char, x})
+				x += char.width()
+			}
+		}
+	}
+}
+
+func (tv *ScrollTextView) getLineAt(y int) ([]XChar, bool) {
+	vy := tv.offsetY + y
+	if vy <= len(tv.data)-1 {
+		return tv.data[vy], true
+	}
+	return nil, false
+}
+
+// scrollUp 文本向上滚动
+func (tv *ScrollTextView) scrollUp(n int) {
+	tv.offsetY += n
+	length := len(tv.data)
+	if tv.offsetY >= length {
+		tv.offsetY = length - 1
+	}
+}
+
+// scrollDown 文本向下滚动
+func (tv *ScrollTextView) scrollDown(n int) {
+	tv.offsetY -= n
+	if tv.offsetY < 0 {
+		tv.offsetY = 0
+	}
+}
+
+func (tv *ScrollTextView) inputToEnd() {
+	tv.inputY = len(tv.data) - 1
+}
+
+func (tv *ScrollTextView) advanceInput() {
+	tv.inputY++
+}
+
 type TRenderer struct {
-	tscreen       tcell.Screen
-	schema        Schema
-	promptFactory PromptFactory
-	selection     *Area
+	tscreen        tcell.Screen
+	selection      *Area
+	scrollTextView *ScrollTextView
+	schema         Schema
+	promptFactory  PromptFactory
 
 	//    xy 坐标到输入行列的映射
 	inputLocationMap map[Coordinate]Location
@@ -53,11 +136,12 @@ type TRenderer struct {
 
 func newTRenderer(tscreen tcell.Screen, schema Schema, promptFactory PromptFactory) *TRenderer {
 	return &TRenderer{
-		totalBuffer:   map[int]map[int]*Char{},
-		tscreen:       tscreen,
-		schema:        schema,
-		promptFactory: promptFactory,
-		selection:     &Area{Coordinate{0, 0}, Coordinate{0, 0}},
+		totalBuffer:    map[int]map[int]*Char{},
+		tscreen:        tscreen,
+		selection:      &Area{Coordinate{0, 0}, Coordinate{0, 0}},
+		scrollTextView: NewScrollTextView(),
+		schema:         schema,
+		promptFactory:  promptFactory,
 	}
 }
 
@@ -96,16 +180,17 @@ func (tr *TRenderer) getNewScreen(renderContext *RenderContext) *Screen {
 }
 
 func (tr *TRenderer) updateWithScreen(screen *Screen) {
-	buffer := screen.GetBuffer()
-	for iy, icolumn := range buffer {
-		y := tr.bufferCoordinate.Y + iy
-		lineData := make(map[int]*Char, len(icolumn))
-		tr.totalBuffer[y] = lineData
-		for ix, char := range icolumn {
-			x := tr.bufferCoordinate.X + ix
-			lineData[x] = char
-		}
-	}
+	//buffer := screen.GetBuffer()
+	//for iy, icolumn := range buffer {
+	//	y := tr.bufferCoordinate.Y + iy
+	//	lineData := make(map[int]*Char, len(icolumn))
+	//	tr.totalBuffer[y] = lineData
+	//	for ix, char := range icolumn {
+	//		x := tr.bufferCoordinate.X + ix
+	//		lineData[x] = char
+	//	}
+	//}
+	tr.scrollTextView.readScreen(screen)
 	locationMap := screen.getLocationMap()
 	tr.inputLocationMap = make(map[Coordinate]Location, len(locationMap))
 	for coordinate, location := range locationMap {
@@ -124,10 +209,12 @@ func (tr *TRenderer) render(renderContext *RenderContext, abort bool, accept boo
 	//    用户输入完毕或者放弃输入或者退出，另起一行
 	if accept || abort {
 		tr.bufferCoordinate.X = 0
-		tr.bufferCoordinate.Y += screen.maxCursorCoordinate.Y + 1
+		tr.bufferCoordinate.Y += screen.lastCoordinate.Y + 1
 		tr.inputCoordinate.X = 0
-		tr.inputCoordinate.Y += screen.maxCursorCoordinate.Y + 1
+		tr.inputCoordinate.Y += screen.lastCoordinate.Y + 1
 		tr.showCursorCoordinate = tr.inputCoordinate
+		tr.scrollTextView.inputToEnd()
+		tr.scrollTextView.advanceInput()
 	} else {
 		//    移动光标到正确位置
 		cursorCoordinate := screen.getCoordinate(
@@ -148,10 +235,11 @@ func (tr *TRenderer) renderOutput(output string) {
 	screen.WriteTokens([]token.Token{tk}, false)
 	tr.updateWithScreen(screen)
 	tr.bufferCoordinate.X = 0
-	tr.bufferCoordinate.Y += screen.maxCursorCoordinate.Y
+	tr.bufferCoordinate.Y += screen.lastCoordinate.Y
 	tr.inputCoordinate.X = 0
-	tr.inputCoordinate.Y += screen.maxCursorCoordinate.Y
+	tr.inputCoordinate.Y += screen.lastCoordinate.Y
 	tr.showCursorCoordinate = tr.inputCoordinate
+	tr.scrollTextView.inputToEnd()
 	tr.Show()
 }
 
@@ -165,24 +253,26 @@ func (tr *TRenderer) Clear() {
 
 // WheelUp 滚动条向上，文本向下
 func (tr *TRenderer) WheelUp(n int) {
-	if tr.bufferOffsetY < n {
-		tr.bufferOffsetY = 0
-		tr.inputCoordinate.Y += tr.bufferOffsetY
-	} else {
-		tr.bufferOffsetY -= n
-		tr.inputCoordinate.Y += n
-	}
+	tr.scrollTextView.scrollDown(n)
+	//if tr.bufferOffsetY < n {
+	//	tr.bufferOffsetY = 0
+	//	tr.inputCoordinate.Y += tr.bufferOffsetY
+	//} else {
+	//	tr.bufferOffsetY -= n
+	//	tr.inputCoordinate.Y += n
+	//}
 }
 
 // WheelDown 滚动条向下，文本向上
 func (tr *TRenderer) WheelDown(n int) {
-	if tr.inputCoordinate.Y < n {
-		tr.bufferOffsetY += tr.inputCoordinate.Y
-		tr.inputCoordinate.Y = 0
-	} else {
-		tr.bufferOffsetY += n
-		tr.inputCoordinate.Y -= n
-	}
+	tr.scrollTextView.scrollUp(n)
+	//if tr.inputCoordinate.Y < n {
+	//	tr.bufferOffsetY += tr.inputCoordinate.Y
+	//	tr.inputCoordinate.Y = 0
+	//} else {
+	//	tr.bufferOffsetY += n
+	//	tr.inputCoordinate.Y -= n
+	//}
 }
 
 // Show 展示到窗口画面
@@ -191,25 +281,39 @@ func (tr *TRenderer) Show() {
 	tr.tscreen.Clear()
 	size := tr.getSize()
 	for y := 0; y < size.height; y++ {
-		lineData, found := tr.totalBuffer[y+tr.bufferOffsetY]
+		lineData, found := tr.scrollTextView.getLineAt(y)
 		if found {
-			for x := 0; x < size.width; x++ {
-				char, found := lineData[x]
-				if found {
-					tstyle := tcell.StyleDefault
-					if colorStyle, ok := char.style.(*terminalcolor.ColorStyle); ok {
-						tstyle = terminalcolor.ToTcellStyle(colorStyle)
-					}
-					if tr.selection.Contains(Coordinate{x, y}) {
-						tstyle = tstyle.Reverse(true)
-					}
-					for i, r := range char.char {
-						tr.tscreen.SetContent(x+i, y, r, nil, tstyle)
-					}
-					x += char.width() - 1
+			for _, datum := range lineData {
+				tstyle := tcell.StyleDefault
+				if colorStyle, ok := datum.char.style.(*terminalcolor.ColorStyle); ok {
+					tstyle = terminalcolor.ToTcellStyle(colorStyle)
+				}
+				DebugLog("draw char %d: %s", y, datum.char.char)
+				for i, r := range datum.char.char {
+					tr.tscreen.SetContent(datum.x+i, y, r, nil, tstyle)
 				}
 			}
 		}
+
+		//lineData, found := tr.totalBuffer[y+tr.bufferOffsetY]
+		//if found {
+		//	for x := 0; x < size.width; x++ {
+		//		char, found := lineData[x]
+		//		if found {
+		//			tstyle := tcell.StyleDefault
+		//			if colorStyle, ok := char.style.(*terminalcolor.ColorStyle); ok {
+		//				tstyle = terminalcolor.ToTcellStyle(colorStyle)
+		//			}
+		//			if tr.selection.Contains(Coordinate{x, y}) {
+		//				tstyle = tstyle.Reverse(true)
+		//			}
+		//			for i, r := range char.char {
+		//				tr.tscreen.SetContent(x+i, y, r, nil, tstyle)
+		//			}
+		//			x += char.width() - 1
+		//		}
+		//	}
+		//}
 	}
 	tr.tscreen.ShowCursor(tr.showCursorCoordinate.X, tr.showCursorCoordinate.Y)
 	tr.tscreen.Show()
@@ -300,7 +404,7 @@ func (tr *TRenderer) SelectWord(coordinate Coordinate) {
 		x += char.width() - 1
 	}
 
-	var start Coordinate
+	start := Coordinate{0, coordinate.Y}
 	for x := coordinate.X; x >= 0; x-- {
 		char, found := lineData[x]
 		if !found {
