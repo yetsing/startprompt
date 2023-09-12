@@ -57,13 +57,21 @@ func (st *sScrollTextView) readScreen(screen *Screen) {
 	lastCoordinate := screen.getLastCoordinate()
 	width := screen.getWidth()
 	buffer := screen.GetBuffer()
+	//    如果只有一行，那么文本宽度就是最后坐标的 x
+	//    否则就是 screen 宽度
+	endX := lastCoordinate.X
+	if lastCoordinate.Y > 0 {
+		endX = width
+	}
 	for y := 0; y <= lastCoordinate.Y; y++ {
 		vy := st.inputY + y
 		st.growTo(vy)
+		//    清空当前行数据
+		st.data[vy] = nil
 		lineBuffer, found := buffer[y]
 		if found {
 			x := 0
-			for x < width {
+			for x < endX {
 				var char *Char
 				if _, found := lineBuffer[x]; found {
 					char = lineBuffer[x]
@@ -77,6 +85,7 @@ func (st *sScrollTextView) readScreen(screen *Screen) {
 	}
 }
 
+// getLineAt 传入窗口坐标 y ，返回对应行数据
 func (st *sScrollTextView) getLineAt(y int) ([]xChar, bool) {
 	vy := st.offsetY + y
 	if vy <= len(st.data)-1 {
@@ -107,11 +116,6 @@ func (st *sScrollTextView) inputToEnd() {
 	st.inputY = len(st.data) - 1
 }
 
-func (st *sScrollTextView) advanceInput() {
-	st.inputY++
-	st.growTo(st.inputY)
-}
-
 func (st *sScrollTextView) acceptInput() {
 	st.inputY = len(st.data)
 	st.growTo(st.inputY)
@@ -134,9 +138,76 @@ func (st *sScrollTextView) getInputStartCoordinate() Coordinate {
 	return Coordinate{0, st.inputY - st.offsetY}
 }
 
+// getClosetCharCoordinate 返回最接近的字符窗口坐标，布尔值表示是否找到
+func (st *sScrollTextView) getClosetCharCoordinate(coordinate Coordinate) (Coordinate, bool) {
+	lineData, found := st.getLineAt(coordinate.Y)
+	if !found {
+		return Coordinate{-1, -1}, false
+	}
+	ret := Coordinate{0, coordinate.Y}
+	//    找到最后一个 x 坐标小于等于的
+	for _, datum := range lineData {
+		if datum.x > coordinate.X {
+			return ret, true
+		}
+		ret.X = datum.x
+	}
+	return Coordinate{-1, -1}, false
+}
+
+// getWordArea 返回窗口坐标处的单词区域（窗口坐标）
+func (st *sScrollTextView) getWordArea(coordinate Coordinate) area {
+	DebugLog("coordinate=%+v, offsetY=%d", coordinate, st.offsetY)
+	lineData, found := st.getLineAt(coordinate.Y)
+	if !found {
+		DebugLog("not found lineData %+v", coordinate)
+		return area{}
+	}
+	//    找到窗口坐标所在字符索引
+	index := -1
+	for i, datum := range lineData {
+		DebugLog("found <%s> index=%d", datum.char, index)
+		if datum.x > coordinate.X {
+			break
+		}
+		index = i
+	}
+	if index == -1 {
+		DebugLog("not found index %+v", coordinate)
+		return area{}
+	}
+
+	DebugLog("found index=%d", index)
+
+	length := len(lineData)
+	//    默认是行尾
+	end := Coordinate{lineData[length-1].x + lineData[length-1].width(), coordinate.Y}
+	for i := index; i < length; i++ {
+		xc := lineData[i]
+		if IsSpace(xc.char) {
+			end = Coordinate{xc.x, coordinate.Y}
+			break
+		}
+	}
+	//    默认是行首
+	start := Coordinate{lineData[0].x, coordinate.Y}
+	for i := index; i >= 0; i-- {
+		xc := lineData[i]
+		if IsSpace(xc.char) {
+			start = Coordinate{xc.x + xc.width(), coordinate.Y}
+			break
+		}
+	}
+	DebugLog("word area start=%+v end=%+v", start, end)
+	return area{
+		start: start,
+		end:   end,
+	}
+}
+
 type TRenderer struct {
 	tscreen        tcell.Screen
-	selection      *area
+	selection      area
 	scrollTextView *sScrollTextView
 	schema         Schema
 	promptFactory  PromptFactory
@@ -152,7 +223,7 @@ type TRenderer struct {
 func newTRenderer(tscreen tcell.Screen, schema Schema, promptFactory PromptFactory) *TRenderer {
 	return &TRenderer{
 		tscreen:        tscreen,
-		selection:      &area{Coordinate{0, 0}, Coordinate{0, 0}},
+		selection:      area{Coordinate{0, 0}, Coordinate{0, 0}},
 		scrollTextView: newScrollTextView(),
 		schema:         schema,
 		promptFactory:  promptFactory,
@@ -194,16 +265,6 @@ func (tr *TRenderer) getNewScreen(renderContext *RenderContext) *Screen {
 }
 
 func (tr *TRenderer) updateWithScreen(screen *Screen) {
-	//buffer := screen.GetBuffer()
-	//for iy, icolumn := range buffer {
-	//	y := tr.bufferCoordinate.Y + iy
-	//	lineData := make(map[int]*Char, len(icolumn))
-	//	tr.totalBuffer[y] = lineData
-	//	for ix, char := range icolumn {
-	//		x := tr.bufferCoordinate.X + ix
-	//		lineData[x] = char
-	//	}
-	//}
 	tr.scrollTextView.readScreen(screen)
 	locationMap := screen.getLocationMap()
 	tr.inputLocationMap = make(map[Coordinate]Location, len(locationMap))
@@ -282,6 +343,9 @@ func (tr *TRenderer) Show() {
 				if colorStyle, ok := datum.style.(*terminalcolor.ColorStyle); ok {
 					tstyle = terminalcolor.ToTcellStyle(colorStyle)
 				}
+				if tr.selection.Contains(Coordinate{datum.x, y}) {
+					tstyle = tstyle.Reverse(true)
+				}
 				for i, r := range datum.char {
 					tr.tscreen.SetContent(datum.x+i, y, r, nil, tstyle)
 				}
@@ -296,18 +360,10 @@ func (tr *TRenderer) reset() {
 
 }
 
-// GetClosetLocation 返回跟坐标最接近的行列，返回的布尔值是否可以找到
+// GetClosetLocation 返回跟坐标最接近的行列，返回的布尔值表示是否找到
 func (tr *TRenderer) GetClosetLocation(coordinate Coordinate) (Location, bool) {
-	// 在 (x-4, y) ~ (x+4, y) 的范围内寻找行列
-	end := maxInt(0, coordinate.X-4)
-	for x := coordinate.X; x >= end; x-- {
-		loc, found := tr.inputLocationMap[Coordinate{x, coordinate.Y}]
-		if found {
-			return loc, found
-		}
-	}
-	end = coordinate.X + 4
-	for x := coordinate.X; x <= end; x++ {
+	// 在 (0, y) ~ (x, y) 的范围内寻找行列
+	for x := coordinate.X; x >= 0; x-- {
 		loc, found := tr.inputLocationMap[Coordinate{x, coordinate.Y}]
 		if found {
 			return loc, found
@@ -326,70 +382,7 @@ func (tr *TRenderer) LineInTextArea(y int) bool {
 	return tr.scrollTextView.containLine(y)
 }
 
-// 返回指定坐标处的字符开始坐标，调用者要保证坐标在文本区域内
-//
-//	func (tr *TRenderer) getCharCoordinate(coordinate Coordinate) Coordinate {
-//		by := coordinate.Y + tr.bufferOffsetY
-//		lineData, found := tr.totalBuffer[by]
-//		if !found {
-//			panic(fmt.Errorf("invalid coordinate: %+v", coordinate))
-//		}
-//		for x := coordinate.X; x >= 0; x-- {
-//			_, found := lineData[x]
-//			if found {
-//				return Coordinate{x, coordinate.Y}
-//			}
-//		}
-//		return Coordinate{0, coordinate.Y}
-//	}
-//
-
 // SelectWord 选择指定坐标处的单词（鼠标双击触发）
 func (tr *TRenderer) SelectWord(coordinate Coordinate) {
-	//	by := coordinate.Y + tr.bufferOffsetY
-	//	lineData, found := tr.totalBuffer[by]
-	//	if !found {
-	//		//    点击处没有文本
-	//		return
-	//	}
-	//	//    获取单词的开始和结束
-	//	width, _ := tr.tscreen.Size()
-	//	DebugLog("select word coordinate: %+v", coordinate)
-	//	coordinate = tr.getCharCoordinate(coordinate)
-	//	DebugLog("select word adjust coordinate: %+v", coordinate)
-	//	var end Coordinate
-	//	for x := coordinate.X; x < width; x++ {
-	//		char, found := lineData[x]
-	//		if !found {
-	//			end = Coordinate{x, coordinate.Y}
-	//			break
-	//		}
-	//		if IsSpace(char.char) {
-	//			end = Coordinate{x, coordinate.Y}
-	//			break
-	//		}
-	//		x += char.width() - 1
-	//	}
-	//
-	//	start := Coordinate{0, coordinate.Y}
-	//	for x := coordinate.X; x >= 0; x-- {
-	//		char, found := lineData[x]
-	//		if !found {
-	//			start = Coordinate{x, coordinate.Y}
-	//			break
-	//		}
-	//		if IsSpace(char.char) {
-	//			start = Coordinate{x + char.width(), coordinate.Y}
-	//			break
-	//		}
-	//		x -= char.width() - 1
-	//	}
-	//	if start.equal(&end) {
-	//		return
-	//	}
-	//	DebugLog("select word start: %+v, end: %+v", start, end)
-	//	tr.selection = &Area{
-	//		start: start,
-	//		end:   end,
-	//	}
+	tr.selection = tr.scrollTextView.getWordArea(coordinate)
 }
