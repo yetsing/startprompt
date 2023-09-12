@@ -1,19 +1,17 @@
 package startprompt
 
 import (
-	"fmt"
-
 	"github.com/gdamore/tcell/v2"
 	"github.com/yetsing/startprompt/terminalcolor"
 	"github.com/yetsing/startprompt/token"
 )
 
-type Area struct {
+type area struct {
 	start Coordinate
 	end   Coordinate
 }
 
-func (a *Area) Contains(coordinate Coordinate) bool {
+func (a *area) Contains(coordinate Coordinate) bool {
 	if a.start.Y == a.end.Y {
 		return a.start.Y == coordinate.Y && a.start.X <= coordinate.X && coordinate.X < a.end.X
 	}
@@ -25,43 +23,43 @@ func (a *Area) Contains(coordinate Coordinate) bool {
 	return coordinate.Y > a.start.Y && coordinate.Y < a.end.Y
 }
 
-type XChar struct {
-	char *Char
-	x    int
+type xChar struct {
+	*Char
+	x int
 }
 
-type ScrollTextView struct {
+type sScrollTextView struct {
 	//    行列二维数组
-	data [][]XChar
-	//    当前输入左上角在 buffer 第几行
+	data [][]xChar
+	//    当前输入左上角在 data 第几行
 	inputY int
-	//    y 轴上的偏移量（滚动量）
+	//    data 在 y 轴上的偏移量（滚动量）
+	//    其实就是从第几行开始显示在窗口中
 	offsetY int
-	//    宽度
-	width int
 }
 
-func NewScrollTextView() *ScrollTextView {
-	return &ScrollTextView{data: [][]XChar{nil}}
+func newScrollTextView() *sScrollTextView {
+	return &sScrollTextView{data: [][]xChar{nil}}
 }
 
-func (tv *ScrollTextView) growTo(y int) {
-	for i := len(tv.data) - 1; i < y; i++ {
-		tv.data = append(tv.data, []XChar{})
+// growTo 增加数据长度， y 是从 0 开始的索引
+func (st *sScrollTextView) growTo(y int) {
+	for i := len(st.data) - 1; i < y; i++ {
+		st.data = append(st.data, []xChar{})
 	}
 }
 
-func (tv *ScrollTextView) appendAt(vy int, xchar XChar) {
-	tv.data[vy] = append(tv.data[vy], xchar)
+func (st *sScrollTextView) appendAt(vy int, xchar xChar) {
+	st.data[vy] = append(st.data[vy], xchar)
 }
 
-func (tv *ScrollTextView) readScreen(screen *Screen) {
+func (st *sScrollTextView) readScreen(screen *Screen) {
 	lastCoordinate := screen.getLastCoordinate()
 	width := screen.getWidth()
 	buffer := screen.GetBuffer()
 	for y := 0; y <= lastCoordinate.Y; y++ {
-		vy := tv.inputY + y
-		tv.growTo(vy)
+		vy := st.inputY + y
+		st.growTo(vy)
 		lineBuffer, found := buffer[y]
 		if found {
 			x := 0
@@ -72,74 +70,90 @@ func (tv *ScrollTextView) readScreen(screen *Screen) {
 				} else {
 					char = newChar(' ', nil)
 				}
-				tv.appendAt(vy, XChar{char, x})
+				st.appendAt(vy, xChar{char, x})
 				x += char.width()
 			}
 		}
 	}
 }
 
-func (tv *ScrollTextView) getLineAt(y int) ([]XChar, bool) {
-	vy := tv.offsetY + y
-	if vy <= len(tv.data)-1 {
-		return tv.data[vy], true
+func (st *sScrollTextView) getLineAt(y int) ([]xChar, bool) {
+	vy := st.offsetY + y
+	if vy <= len(st.data)-1 {
+		return st.data[vy], true
 	}
 	return nil, false
 }
 
 // scrollUp 文本向上滚动
-func (tv *ScrollTextView) scrollUp(n int) {
-	tv.offsetY += n
-	length := len(tv.data)
-	if tv.offsetY >= length {
-		tv.offsetY = length - 1
+func (st *sScrollTextView) scrollUp(n int) {
+	st.offsetY += n
+	length := len(st.data)
+	if st.offsetY >= length {
+		st.offsetY = length - 1
 	}
 }
 
-// scrollDown 文本向下滚动
-func (tv *ScrollTextView) scrollDown(n int) {
-	tv.offsetY -= n
-	if tv.offsetY < 0 {
-		tv.offsetY = 0
+// scrollDown 文本向下滚动，返回实际滚动行数
+func (st *sScrollTextView) scrollDown(n int) int {
+	if n > st.offsetY {
+		n = st.offsetY
 	}
+	st.offsetY -= n
+	return n
 }
 
-func (tv *ScrollTextView) inputToEnd() {
-	tv.inputY = len(tv.data) - 1
+func (st *sScrollTextView) inputToEnd() {
+	st.inputY = len(st.data) - 1
 }
 
-func (tv *ScrollTextView) advanceInput() {
-	tv.inputY++
+func (st *sScrollTextView) advanceInput() {
+	st.inputY++
+	st.growTo(st.inputY)
+}
+
+func (st *sScrollTextView) acceptInput() {
+	st.inputY = len(st.data)
+	st.growTo(st.inputY)
+}
+
+// containLine 是否包含窗口坐标 y 处行
+func (st *sScrollTextView) containLine(y int) bool {
+	sy := st.offsetY + y
+	return sy < len(st.data)
+}
+
+// inputContainLine 当前输入是否包含窗口坐标 y 处行
+func (st *sScrollTextView) inputContainLine(y int) bool {
+	sy := st.offsetY + y
+	return st.inputY <= sy && sy < len(st.data)
+}
+
+// getInputStartCoordinate 返回当前输入左上角的窗口坐标
+func (st *sScrollTextView) getInputStartCoordinate() Coordinate {
+	return Coordinate{0, st.inputY - st.offsetY}
 }
 
 type TRenderer struct {
 	tscreen        tcell.Screen
-	selection      *Area
-	scrollTextView *ScrollTextView
+	selection      *area
+	scrollTextView *sScrollTextView
 	schema         Schema
 	promptFactory  PromptFactory
 
 	//    xy 坐标到输入行列的映射
 	inputLocationMap map[Coordinate]Location
-	//    保存至今为止全部的输出
-	//    {y: {x: Char}}
-	totalBuffer map[int]map[int]*Char
-	//    当前输入在 totalBuffer 的坐标（输入左上角）
-	bufferCoordinate Coordinate
-	//    渲染 totalBuffer 中 >= bufferOffsetY 的内容
-	bufferOffsetY int
-	//    当前输入在窗口中的坐标（输入左上角）
-	inputCoordinate Coordinate
+	//    当前输入开头在窗口中的坐标（输入左上角）
+	inputStartCoordinate Coordinate
 	//    在窗口中显示的光标坐标
-	showCursorCoordinate Coordinate
+	cursorCoordinate Coordinate
 }
 
 func newTRenderer(tscreen tcell.Screen, schema Schema, promptFactory PromptFactory) *TRenderer {
 	return &TRenderer{
-		totalBuffer:    map[int]map[int]*Char{},
 		tscreen:        tscreen,
-		selection:      &Area{Coordinate{0, 0}, Coordinate{0, 0}},
-		scrollTextView: NewScrollTextView(),
+		selection:      &area{Coordinate{0, 0}, Coordinate{0, 0}},
+		scrollTextView: newScrollTextView(),
 		schema:         schema,
 		promptFactory:  promptFactory,
 	}
@@ -193,10 +207,11 @@ func (tr *TRenderer) updateWithScreen(screen *Screen) {
 	tr.scrollTextView.readScreen(screen)
 	locationMap := screen.getLocationMap()
 	tr.inputLocationMap = make(map[Coordinate]Location, len(locationMap))
+	inputStartCoordinate := tr.scrollTextView.getInputStartCoordinate()
 	for coordinate, location := range locationMap {
 		newCoordinate := Coordinate{
-			X: coordinate.X + tr.inputCoordinate.X,
-			Y: coordinate.Y + tr.inputCoordinate.Y,
+			X: coordinate.X + inputStartCoordinate.X,
+			Y: coordinate.Y + inputStartCoordinate.Y,
 		}
 		tr.inputLocationMap[newCoordinate] = location
 	}
@@ -208,20 +223,16 @@ func (tr *TRenderer) render(renderContext *RenderContext, abort bool, accept boo
 	tr.updateWithScreen(screen)
 	//    用户输入完毕或者放弃输入或者退出，另起一行
 	if accept || abort {
-		tr.bufferCoordinate.X = 0
-		tr.bufferCoordinate.Y += screen.lastCoordinate.Y + 1
-		tr.inputCoordinate.X = 0
-		tr.inputCoordinate.Y += screen.lastCoordinate.Y + 1
-		tr.showCursorCoordinate = tr.inputCoordinate
-		tr.scrollTextView.inputToEnd()
-		tr.scrollTextView.advanceInput()
+		tr.scrollTextView.acceptInput()
+		tr.cursorCoordinate = tr.scrollTextView.getInputStartCoordinate()
 	} else {
 		//    移动光标到正确位置
 		cursorCoordinate := screen.getCoordinate(
 			renderContext.document.CursorPositionRow(),
 			renderContext.document.CursorPositionCol())
-		tr.showCursorCoordinate.X = tr.inputCoordinate.X + cursorCoordinate.X
-		tr.showCursorCoordinate.Y = tr.inputCoordinate.Y + cursorCoordinate.Y
+		inputStartCoordinate := tr.scrollTextView.getInputStartCoordinate()
+		tr.cursorCoordinate.X = inputStartCoordinate.X + cursorCoordinate.X
+		tr.cursorCoordinate.Y = inputStartCoordinate.Y + cursorCoordinate.Y
 	}
 	tr.Show()
 }
@@ -234,12 +245,8 @@ func (tr *TRenderer) renderOutput(output string) {
 	tk := token.NewToken(token.Text, output)
 	screen.WriteTokens([]token.Token{tk}, false)
 	tr.updateWithScreen(screen)
-	tr.bufferCoordinate.X = 0
-	tr.bufferCoordinate.Y += screen.lastCoordinate.Y
-	tr.inputCoordinate.X = 0
-	tr.inputCoordinate.Y += screen.lastCoordinate.Y
-	tr.showCursorCoordinate = tr.inputCoordinate
 	tr.scrollTextView.inputToEnd()
+	tr.cursorCoordinate = tr.scrollTextView.getInputStartCoordinate()
 	tr.Show()
 }
 
@@ -248,31 +255,18 @@ func (tr *TRenderer) Resize() {
 }
 
 func (tr *TRenderer) Clear() {
-	tr.WheelDown(tr.inputCoordinate.Y)
+	inputStartCoordinate := tr.scrollTextView.getInputStartCoordinate()
+	tr.WheelDown(inputStartCoordinate.Y)
 }
 
 // WheelUp 滚动条向上，文本向下
 func (tr *TRenderer) WheelUp(n int) {
 	tr.scrollTextView.scrollDown(n)
-	//if tr.bufferOffsetY < n {
-	//	tr.bufferOffsetY = 0
-	//	tr.inputCoordinate.Y += tr.bufferOffsetY
-	//} else {
-	//	tr.bufferOffsetY -= n
-	//	tr.inputCoordinate.Y += n
-	//}
 }
 
 // WheelDown 滚动条向下，文本向上
 func (tr *TRenderer) WheelDown(n int) {
 	tr.scrollTextView.scrollUp(n)
-	//if tr.inputCoordinate.Y < n {
-	//	tr.bufferOffsetY += tr.inputCoordinate.Y
-	//	tr.inputCoordinate.Y = 0
-	//} else {
-	//	tr.bufferOffsetY += n
-	//	tr.inputCoordinate.Y -= n
-	//}
 }
 
 // Show 展示到窗口画面
@@ -285,37 +279,16 @@ func (tr *TRenderer) Show() {
 		if found {
 			for _, datum := range lineData {
 				tstyle := tcell.StyleDefault
-				if colorStyle, ok := datum.char.style.(*terminalcolor.ColorStyle); ok {
+				if colorStyle, ok := datum.style.(*terminalcolor.ColorStyle); ok {
 					tstyle = terminalcolor.ToTcellStyle(colorStyle)
 				}
-				DebugLog("draw char %d: %s", y, datum.char.char)
-				for i, r := range datum.char.char {
+				for i, r := range datum.char {
 					tr.tscreen.SetContent(datum.x+i, y, r, nil, tstyle)
 				}
 			}
 		}
-
-		//lineData, found := tr.totalBuffer[y+tr.bufferOffsetY]
-		//if found {
-		//	for x := 0; x < size.width; x++ {
-		//		char, found := lineData[x]
-		//		if found {
-		//			tstyle := tcell.StyleDefault
-		//			if colorStyle, ok := char.style.(*terminalcolor.ColorStyle); ok {
-		//				tstyle = terminalcolor.ToTcellStyle(colorStyle)
-		//			}
-		//			if tr.selection.Contains(Coordinate{x, y}) {
-		//				tstyle = tstyle.Reverse(true)
-		//			}
-		//			for i, r := range char.char {
-		//				tr.tscreen.SetContent(x+i, y, r, nil, tstyle)
-		//			}
-		//			x += char.width() - 1
-		//		}
-		//	}
-		//}
 	}
-	tr.tscreen.ShowCursor(tr.showCursorCoordinate.X, tr.showCursorCoordinate.Y)
+	tr.tscreen.ShowCursor(tr.cursorCoordinate.X, tr.cursorCoordinate.Y)
 	tr.tscreen.Show()
 }
 
@@ -343,86 +316,80 @@ func (tr *TRenderer) GetClosetLocation(coordinate Coordinate) (Location, bool) {
 	return Location{-1, -1}, false
 }
 
-// InInputArea 判断坐标是否在当前输入区域内（以行为准）
-func (tr *TRenderer) InInputArea(coordinate Coordinate) bool {
-	width, _ := tr.tscreen.Size()
-	for x := 0; x < width; x++ {
-		if _, found := tr.inputLocationMap[Coordinate{x, coordinate.Y}]; found {
-			return true
-		}
-	}
-	return false
+// LineInInputArea InInputArea 判断坐标 y 所在行是否在当前输入区域内
+func (tr *TRenderer) LineInInputArea(y int) bool {
+	return tr.scrollTextView.inputContainLine(y)
 }
 
-// InTextArea 判断坐标是否在文本区域内（以行为准）
-func (tr *TRenderer) InTextArea(coordinate Coordinate) bool {
-	by := coordinate.Y + tr.bufferOffsetY
-	_, found := tr.totalBuffer[by]
-	return found
+// LineInTextArea 判断坐标 y 所在行是否在文本区域内
+func (tr *TRenderer) LineInTextArea(y int) bool {
+	return tr.scrollTextView.containLine(y)
 }
 
 // 返回指定坐标处的字符开始坐标，调用者要保证坐标在文本区域内
-func (tr *TRenderer) getCharCoordinate(coordinate Coordinate) Coordinate {
-	by := coordinate.Y + tr.bufferOffsetY
-	lineData, found := tr.totalBuffer[by]
-	if !found {
-		panic(fmt.Errorf("invalid coordinate: %+v", coordinate))
-	}
-	for x := coordinate.X; x >= 0; x-- {
-		_, found := lineData[x]
-		if found {
-			return Coordinate{x, coordinate.Y}
-		}
-	}
-	return Coordinate{0, coordinate.Y}
-}
+//
+//	func (tr *TRenderer) getCharCoordinate(coordinate Coordinate) Coordinate {
+//		by := coordinate.Y + tr.bufferOffsetY
+//		lineData, found := tr.totalBuffer[by]
+//		if !found {
+//			panic(fmt.Errorf("invalid coordinate: %+v", coordinate))
+//		}
+//		for x := coordinate.X; x >= 0; x-- {
+//			_, found := lineData[x]
+//			if found {
+//				return Coordinate{x, coordinate.Y}
+//			}
+//		}
+//		return Coordinate{0, coordinate.Y}
+//	}
+//
 
 // SelectWord 选择指定坐标处的单词（鼠标双击触发）
 func (tr *TRenderer) SelectWord(coordinate Coordinate) {
-	by := coordinate.Y + tr.bufferOffsetY
-	lineData, found := tr.totalBuffer[by]
-	if !found {
-		//    点击处没有文本
-		return
-	}
-	//    获取单词的开始和结束
-	width, _ := tr.tscreen.Size()
-	DebugLog("select word coordinate: %+v", coordinate)
-	coordinate = tr.getCharCoordinate(coordinate)
-	DebugLog("select word adjust coordinate: %+v", coordinate)
-	var end Coordinate
-	for x := coordinate.X; x < width; x++ {
-		char, found := lineData[x]
-		if !found {
-			end = Coordinate{x, coordinate.Y}
-			break
-		}
-		if IsSpace(char.char) {
-			end = Coordinate{x, coordinate.Y}
-			break
-		}
-		x += char.width() - 1
-	}
-
-	start := Coordinate{0, coordinate.Y}
-	for x := coordinate.X; x >= 0; x-- {
-		char, found := lineData[x]
-		if !found {
-			start = Coordinate{x, coordinate.Y}
-			break
-		}
-		if IsSpace(char.char) {
-			start = Coordinate{x + char.width(), coordinate.Y}
-			break
-		}
-		x -= char.width() - 1
-	}
-	if start.equal(&end) {
-		return
-	}
-	DebugLog("select word start: %+v, end: %+v", start, end)
-	tr.selection = &Area{
-		start: start,
-		end:   end,
-	}
+	//	by := coordinate.Y + tr.bufferOffsetY
+	//	lineData, found := tr.totalBuffer[by]
+	//	if !found {
+	//		//    点击处没有文本
+	//		return
+	//	}
+	//	//    获取单词的开始和结束
+	//	width, _ := tr.tscreen.Size()
+	//	DebugLog("select word coordinate: %+v", coordinate)
+	//	coordinate = tr.getCharCoordinate(coordinate)
+	//	DebugLog("select word adjust coordinate: %+v", coordinate)
+	//	var end Coordinate
+	//	for x := coordinate.X; x < width; x++ {
+	//		char, found := lineData[x]
+	//		if !found {
+	//			end = Coordinate{x, coordinate.Y}
+	//			break
+	//		}
+	//		if IsSpace(char.char) {
+	//			end = Coordinate{x, coordinate.Y}
+	//			break
+	//		}
+	//		x += char.width() - 1
+	//	}
+	//
+	//	start := Coordinate{0, coordinate.Y}
+	//	for x := coordinate.X; x >= 0; x-- {
+	//		char, found := lineData[x]
+	//		if !found {
+	//			start = Coordinate{x, coordinate.Y}
+	//			break
+	//		}
+	//		if IsSpace(char.char) {
+	//			start = Coordinate{x + char.width(), coordinate.Y}
+	//			break
+	//		}
+	//		x -= char.width() - 1
+	//	}
+	//	if start.equal(&end) {
+	//		return
+	//	}
+	//	DebugLog("select word start: %+v, end: %+v", start, end)
+	//	tr.selection = &Area{
+	//		start: start,
+	//		end:   end,
+	//	}
 }

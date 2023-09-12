@@ -724,7 +724,7 @@ func (l *Line) ToMode(modes ...linemode.LineMode) {
 	}
 }
 
-func (l *Line) SetLocation(location Location) {
+func (l *Line) MouseDown(location Location) {
 	pos := l.Document().translateRowColToIndex(location.Row, location.Col)
 	l.SetCursorPosition(pos)
 }
