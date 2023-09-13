@@ -6,13 +6,14 @@ helloworld 例子，读取用户输入并将其打印出来
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/yetsing/startprompt"
 )
 
 func main() {
 	c, err := startprompt.NewTCommandLine(&startprompt.CommandLineOption{
-		EnableDebug: true,
+		//EnableDebug: true,
 	})
 	if err != nil {
 		fmt.Printf("failed to startprompt.NewTCommandLine: %v\n", err)
@@ -25,4 +26,5 @@ func main() {
 		return
 	}
 	c.Println("echo:", line)
+	time.Sleep(1 * time.Second)
 }

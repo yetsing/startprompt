@@ -57,6 +57,7 @@ func main() {
 		return
 	}
 	defer c.Close()
+	c.Println("Type multiline text. Press twice Enter confirm or Ctrl-D exit")
 	line, err := c.ReadInput()
 	if err != nil {
 		c.Printf("ReadInput error: %v\n", err)
