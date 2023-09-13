@@ -35,10 +35,15 @@ func (tb *TBaseEventHandler) Handle(event Event) {
 func (tb *TBaseEventHandler) HandleEventMouse(em *EventMouse) {
 	tcli := em.GetTCommandLine()
 	line := tcli.GetLine()
+
 	tb.tcli = tcli
 	tb.line = line
+
 	eventType := em.Type()
 	renderer := tcli.GetRenderer()
+
+	renderer.TriggerEventMouse()
+
 	switch eventType {
 	case EventTypeMouseWheelUp:
 		tcli.GetRenderer().WheelUp(1)
@@ -60,6 +65,8 @@ func (tb *TBaseEventHandler) HandleEventKey(ek *EventKey) {
 	eventType := ek.Type()
 	tb.tcli = ek.GetTCommandLine()
 	tb.line = tb.tcli.GetLine()
+
+	tb.tcli.GetRenderer().TriggerEventKey()
 
 	if tb.needsToSave(eventType) {
 		tb.line.SaveToUndoStack()

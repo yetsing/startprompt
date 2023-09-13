@@ -101,6 +101,14 @@ func (st *sScrollTextView) getLineAt(y int) ([]xChar, bool) {
 	return nil, false
 }
 
+// restoreScroll 恢复原本的滚动位置
+//
+//	当我们滚动到之前的文本时，按下键盘，画面应该回到之前输入的位置。
+//	效果参考终端
+func (st *sScrollTextView) restoreScroll() {
+	st.offsetY = st.offsetLimitY
+}
+
 // moveUp 文本向上移动，会增加滚动的边界
 func (st *sScrollTextView) moveUp(n int) int {
 	if st.offsetLimitY+n > len(st.data)-1 {
@@ -108,6 +116,16 @@ func (st *sScrollTextView) moveUp(n int) int {
 	}
 	st.offsetY += n
 	st.offsetLimitY += n
+	return n
+}
+
+// moveDown 文本向下移动，会减少滚动的边界
+func (st *sScrollTextView) moveDown(n int) int {
+	if st.offsetLimitY < n {
+		n = st.offsetLimitY
+	}
+	st.offsetY -= n
+	st.offsetLimitY -= n
 	return n
 }
 
@@ -226,13 +244,19 @@ type TRenderer struct {
 	tscreen        tcell.Screen
 	selection      area
 	scrollTextView *sScrollTextView
-	schema         Schema
-	promptFactory  PromptFactory
+
+	schema        Schema
+	promptFactory PromptFactory
 
 	//    xy 坐标到输入行列的映射
 	inputLocationMap map[Coordinate]Location
-	//    在窗口中显示的光标坐标
-	cursorCoordinate Coordinate
+	//    光标相对于输入左上角的（相对）坐标
+	cursorRelativeCoordinate Coordinate
+
+	//    键盘事件是否触发
+	triggerEventKey bool
+	//    鼠标事件是否触发
+	triggerEventMouse bool
 }
 
 func newTRenderer(tscreen tcell.Screen, schema Schema, promptFactory PromptFactory) *TRenderer {
@@ -300,15 +324,13 @@ func (tr *TRenderer) render(renderContext *RenderContext, abort bool, accept boo
 	//    用户输入完毕或者放弃输入或者退出，另起一行
 	if accept || abort {
 		tr.scrollTextView.acceptInput()
-		tr.cursorCoordinate = tr.scrollTextView.getInputStartCoordinate()
+		tr.cursorRelativeCoordinate = Coordinate{}
 	} else {
 		//    移动光标到正确位置
-		cursorCoordinate := screen.getCoordinate(
+		relativeCoordinate := screen.getCoordinate(
 			renderContext.document.CursorPositionRow(),
 			renderContext.document.CursorPositionCol())
-		inputStartCoordinate := tr.scrollTextView.getInputStartCoordinate()
-		tr.cursorCoordinate.X = inputStartCoordinate.X + cursorCoordinate.X
-		tr.cursorCoordinate.Y = inputStartCoordinate.Y + cursorCoordinate.Y
+		tr.cursorRelativeCoordinate = relativeCoordinate
 	}
 	tr.Show()
 }
@@ -322,8 +344,16 @@ func (tr *TRenderer) renderOutput(output string) {
 	screen.WriteTokens([]token.Token{tk}, false)
 	tr.updateWithScreen(screen)
 	tr.scrollTextView.inputToEnd()
-	tr.cursorCoordinate = tr.scrollTextView.getInputStartCoordinate()
+	tr.cursorRelativeCoordinate = Coordinate{}
 	tr.Show()
+}
+
+func (tr *TRenderer) getCursorCoordinate() Coordinate {
+	inputStartCoordinate := tr.scrollTextView.getInputStartCoordinate()
+	return Coordinate{
+		X: tr.cursorRelativeCoordinate.X + inputStartCoordinate.X,
+		Y: tr.cursorRelativeCoordinate.Y + inputStartCoordinate.Y,
+	}
 }
 
 func (tr *TRenderer) Resize() {
@@ -332,7 +362,7 @@ func (tr *TRenderer) Resize() {
 
 // Clear 按下 Ctrl-L 触发，置顶光标所在行
 func (tr *TRenderer) Clear() {
-	tr.scrollTextView.moveUp(tr.cursorCoordinate.Y)
+	tr.scrollTextView.moveUp(tr.getCursorCoordinate().Y)
 }
 
 // WheelUp 滚动条向上，文本向下
@@ -349,6 +379,22 @@ func (tr *TRenderer) WheelDown(n int) {
 func (tr *TRenderer) Show() {
 	tr.tscreen.HideCursor()
 	tr.tscreen.Clear()
+
+	//    只有键盘导致的光标移动，才将其移动到窗口内
+	if tr.triggerEventKey {
+		//    检查光标是否在窗口内
+		cursorCoordinate := tr.getCursorCoordinate()
+		//    光标在窗口的上面
+		if cursorCoordinate.Y < 0 {
+			tr.scrollTextView.moveDown(-cursorCoordinate.Y)
+		}
+		_, height := tr.tscreen.Size()
+		//    光标在窗口的下面
+		if cursorCoordinate.Y > height-1 {
+			tr.scrollTextView.moveUp(cursorCoordinate.Y - (height - 1))
+		}
+	}
+
 	size := tr.getSize()
 	for y := 0; y < size.height; y++ {
 		lineData, found := tr.scrollTextView.getLineAt(y)
@@ -367,7 +413,8 @@ func (tr *TRenderer) Show() {
 			}
 		}
 	}
-	tr.tscreen.ShowCursor(tr.cursorCoordinate.X, tr.cursorCoordinate.Y)
+	cursorCoordinate := tr.getCursorCoordinate()
+	tr.tscreen.ShowCursor(cursorCoordinate.X, cursorCoordinate.Y)
 	tr.tscreen.Show()
 }
 
@@ -413,4 +460,17 @@ func (tr *TRenderer) MouseDown(coordinate Coordinate) {
 // Dblclick 鼠标双击
 func (tr *TRenderer) Dblclick(coordinate Coordinate) {
 	tr.SelectWord(coordinate)
+}
+
+// TriggerEventKey 键盘事件触发
+func (tr *TRenderer) TriggerEventKey() {
+	tr.scrollTextView.restoreScroll()
+	tr.triggerEventKey = true
+	tr.triggerEventMouse = false
+}
+
+// TriggerEventMouse 鼠标事件触发
+func (tr *TRenderer) TriggerEventMouse() {
+	tr.triggerEventKey = false
+	tr.triggerEventMouse = true
 }
