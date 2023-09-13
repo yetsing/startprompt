@@ -35,7 +35,13 @@ type sScrollTextView struct {
 	inputY int
 	//    data 在 y 轴上的偏移量（滚动量）
 	//    其实就是从第几行开始显示在窗口中
+	//    范围在 [0, offsetLimitY]
+	//        offsetY 之所以有个上界，是为了模拟终端的滚动效果，
+	//        终端的滚动条默认无法移动，按下 Ctrl-L 置顶当前输入
+	//        此时滚动条可以向上移动，向下只能移动到最初的位置
 	offsetY int
+	//    偏移量的最大值
+	offsetLimitY int
 }
 
 func newScrollTextView() *sScrollTextView {
@@ -55,23 +61,24 @@ func (st *sScrollTextView) appendAt(vy int, xchar xChar) {
 
 func (st *sScrollTextView) readScreen(screen *Screen) {
 	lastCoordinate := screen.getLastCoordinate()
-	width := screen.getWidth()
 	buffer := screen.GetBuffer()
-	//    如果只有一行，那么文本宽度就是最后坐标的 x
-	//    否则就是 screen 宽度
-	endX := lastCoordinate.X
-	if lastCoordinate.Y > 0 {
-		endX = width
-	}
 	for y := 0; y <= lastCoordinate.Y; y++ {
 		vy := st.inputY + y
 		st.growTo(vy)
 		//    清空当前行数据
 		st.data[vy] = nil
 		lineBuffer, found := buffer[y]
+
 		if found {
+			//    当前行最大的 x 坐标
+			endX := 0
+			for x := range lineBuffer {
+				if x > endX {
+					endX = x
+				}
+			}
 			x := 0
-			for x < endX {
+			for x <= endX {
 				var char *Char
 				if _, found := lineBuffer[x]; found {
 					char = lineBuffer[x]
@@ -94,13 +101,23 @@ func (st *sScrollTextView) getLineAt(y int) ([]xChar, bool) {
 	return nil, false
 }
 
-// scrollUp 文本向上滚动
-func (st *sScrollTextView) scrollUp(n int) {
-	st.offsetY += n
-	length := len(st.data)
-	if st.offsetY >= length {
-		st.offsetY = length - 1
+// moveUp 文本向上移动，会增加滚动的边界
+func (st *sScrollTextView) moveUp(n int) int {
+	if st.offsetLimitY+n > len(st.data)-1 {
+		n = len(st.data) - 1 - st.offsetLimitY
 	}
+	st.offsetY += n
+	st.offsetLimitY += n
+	return n
+}
+
+// scrollUp 文本向上滚动
+func (st *sScrollTextView) scrollUp(n int) int {
+	if st.offsetY+n > st.offsetLimitY {
+		n = st.offsetLimitY - st.offsetY
+	}
+	st.offsetY += n
+	return n
 }
 
 // scrollDown 文本向下滚动，返回实际滚动行数
@@ -214,8 +231,6 @@ type TRenderer struct {
 
 	//    xy 坐标到输入行列的映射
 	inputLocationMap map[Coordinate]Location
-	//    当前输入开头在窗口中的坐标（输入左上角）
-	inputStartCoordinate Coordinate
 	//    在窗口中显示的光标坐标
 	cursorCoordinate Coordinate
 }
@@ -315,9 +330,9 @@ func (tr *TRenderer) Resize() {
 	tr.tscreen.Sync()
 }
 
+// Clear 按下 Ctrl-L 触发，置顶光标所在行
 func (tr *TRenderer) Clear() {
-	inputStartCoordinate := tr.scrollTextView.getInputStartCoordinate()
-	tr.WheelDown(inputStartCoordinate.Y)
+	tr.scrollTextView.moveUp(tr.cursorCoordinate.Y)
 }
 
 // WheelUp 滚动条向上，文本向下
@@ -385,4 +400,17 @@ func (tr *TRenderer) LineInTextArea(y int) bool {
 // SelectWord 选择指定坐标处的单词（鼠标双击触发）
 func (tr *TRenderer) SelectWord(coordinate Coordinate) {
 	tr.selection = tr.scrollTextView.getWordArea(coordinate)
+}
+
+// MouseDown 鼠标（左键）按下
+func (tr *TRenderer) MouseDown(coordinate Coordinate) {
+	tr.selection = area{
+		start: coordinate,
+		end:   coordinate,
+	}
+}
+
+// Dblclick 鼠标双击
+func (tr *TRenderer) Dblclick(coordinate Coordinate) {
+	tr.SelectWord(coordinate)
 }

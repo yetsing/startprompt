@@ -33,22 +33,26 @@ func (tb *TBaseEventHandler) Handle(event Event) {
 }
 
 func (tb *TBaseEventHandler) HandleEventMouse(em *EventMouse) {
-	tb.tcli = em.GetTCommandLine()
-	tb.line = tb.tcli.GetLine()
+	tcli := em.GetTCommandLine()
+	line := tcli.GetLine()
+	tb.tcli = tcli
+	tb.line = line
 	eventType := em.Type()
-	renderer := tb.tcli.GetRenderer()
+	renderer := tcli.GetRenderer()
 	switch eventType {
 	case EventTypeMouseWheelUp:
-		tb.tcli.GetRenderer().WheelUp(1)
+		tcli.GetRenderer().WheelUp(1)
 	case EventTypeMouseWheelDown:
-		tb.tcli.GetRenderer().WheelDown(1)
+		tcli.GetRenderer().WheelDown(1)
 	case EventTypeMouseDown:
 		if renderer.LineInInputArea(em.GetCoordinate().Y) {
 			loc, _ := renderer.GetClosetLocation(em.GetCoordinate())
-			tb.line.MouseDown(loc)
+			line.MouseDown(loc)
+		} else {
+			renderer.MouseDown(em.GetCoordinate())
 		}
 	case EventTypeMouseDblclick:
-		tb.tcli.GetRenderer().SelectWord(em.GetCoordinate())
+		tcli.GetRenderer().SelectWord(em.GetCoordinate())
 	}
 }
 
