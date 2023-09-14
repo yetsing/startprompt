@@ -321,6 +321,18 @@ func (tr *TRenderer) render(renderContext *RenderContext, abort bool, accept boo
 	//    写入屏幕输出
 	screen := tr.getNewScreen(renderContext)
 	tr.updateWithScreen(screen)
+
+	//     检查输入中是否有选中的文本
+	if renderContext.selection.exist() {
+		sel := renderContext.selection
+		inputStartCoordinate := tr.scrollTextView.getInputStartCoordinate()
+		start := screen.getCoordinate(sel.start.Row, sel.start.Col)
+		start.add(&inputStartCoordinate)
+		end := screen.getCoordinate(sel.end.Row, sel.end.Col)
+		end.add(&inputStartCoordinate)
+		tr.selection = area{start: start, end: end}
+	}
+
 	//    用户输入完毕或者放弃输入或者退出，另起一行
 	if accept || abort {
 		tr.scrollTextView.acceptInput()
@@ -460,6 +472,11 @@ func (tr *TRenderer) MouseDown(coordinate Coordinate) {
 // Dblclick 鼠标双击
 func (tr *TRenderer) Dblclick(coordinate Coordinate) {
 	tr.SelectWord(coordinate)
+}
+
+// TripeClick 鼠标三击
+func (tr *TRenderer) TripeClick(coordinate Coordinate) {
+
 }
 
 // TriggerEventKey 键盘事件触发

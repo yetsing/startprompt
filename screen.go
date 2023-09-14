@@ -90,6 +90,11 @@ func (c *Coordinate) equal(other *Coordinate) bool {
 	return c.X == other.X && c.Y == other.Y
 }
 
+func (c *Coordinate) add(other *Coordinate) {
+	c.X += other.X
+	c.Y += other.Y
+}
+
 type Location struct {
 	Row int
 	Col int

@@ -3,6 +3,7 @@ package startprompt
 import (
 	"fmt"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/yetsing/startprompt/enums/linemode"
@@ -37,6 +38,16 @@ func (c *cCompletionState) currentCompletionText() string {
 	}
 }
 
+// _LineArea 输入中的选中区域
+type _LineArea struct {
+	start Location
+	end   Location
+}
+
+func (ls *_LineArea) exist() bool {
+	return ls.end != ls.start
+}
+
 type _UndoEntry struct {
 	text           string
 	cursorPosition int
@@ -64,6 +75,9 @@ type Line struct {
 	autoIndent bool
 	//    用户是否确定本次输入
 	accept bool
+
+	//    选中区域
+	selection _LineArea
 }
 
 func newLine(
@@ -545,6 +559,7 @@ func (l *Line) GetRenderContext() *RenderContext {
 		code,
 		completeState,
 		l.Document(),
+		l.selection,
 	)
 }
 
@@ -727,4 +742,43 @@ func (l *Line) ToMode(modes ...linemode.LineMode) {
 func (l *Line) MouseDown(location Location) {
 	pos := l.Document().translateRowColToIndex(location.Row, location.Col)
 	l.SetCursorPosition(pos)
+	l.selection = _LineArea{}
+}
+
+func (l *Line) Dblclick(location Location) {
+	document := l.Document()
+	pos := document.translateRowColToIndex(location.Row, location.Col)
+
+	end := len(l.buffer)
+	for i := pos + 1; i < len(l.buffer); i++ {
+		if unicode.IsSpace(l.buffer[i]) {
+			end = i - 1
+			break
+		}
+	}
+
+	start := 0
+	for i := pos - 1; i >= 0; i-- {
+		if unicode.IsSpace(l.buffer[i]) {
+			start = i + 1
+			break
+		}
+	}
+	if start >= end {
+		return
+	}
+
+	row, col := document.translateIndexToRowCol(end)
+	endLoc := Location{
+		Row: row,
+		Col: col,
+	}
+	row, col = document.translateIndexToRowCol(start)
+	startLoc := Location{
+		Row: row,
+		Col: col,
+	}
+
+	l.selection = _LineArea{start: startLoc, end: endLoc}
+	l.SetCursorPosition(end - 1)
 }

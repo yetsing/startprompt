@@ -53,11 +53,17 @@ func (tb *TBaseEventHandler) HandleEventMouse(em *EventMouse) {
 		if renderer.LineInInputArea(em.GetCoordinate().Y) {
 			loc, _ := renderer.GetClosetLocation(em.GetCoordinate())
 			line.MouseDown(loc)
-		} else {
-			renderer.MouseDown(em.GetCoordinate())
 		}
+		renderer.MouseDown(em.GetCoordinate())
 	case EventTypeMouseDblclick:
-		tcli.GetRenderer().SelectWord(em.GetCoordinate())
+		if renderer.LineInInputArea(em.GetCoordinate().Y) {
+			loc, _ := renderer.GetClosetLocation(em.GetCoordinate())
+			line.Dblclick(loc)
+		} else {
+			tcli.GetRenderer().Dblclick(em.GetCoordinate())
+		}
+	case EventTypeMouseTripleClick:
+		tcli.GetRenderer().TripeClick(em.GetCoordinate())
 	}
 }
 

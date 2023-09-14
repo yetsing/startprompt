@@ -117,7 +117,7 @@ func NewTCommandLine(option *CommandLineOption) (*TCommandLine, error) {
 
 func (tc *TCommandLine) setup() {
 	tc.reset()
-	tc.clickInterval = 1 * time.Second
+	tc.clickInterval = 200 * time.Millisecond
 	if tc.option.EnableDebug {
 		enableDebugLog()
 	} else {
