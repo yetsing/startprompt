@@ -42,6 +42,8 @@ type sScrollTextView struct {
 	offsetY int
 	//    偏移量的最大值
 	offsetLimitY int
+	//    选中区域
+	selection area
 }
 
 func newScrollTextView() *sScrollTextView {
@@ -240,9 +242,41 @@ func (st *sScrollTextView) getWordArea(coordinate Coordinate) area {
 	}
 }
 
+// mouseDown 鼠标（左键）点击，传入窗口坐标
+func (st *sScrollTextView) mouseDown(coordinate Coordinate) {
+	coordinate.addY(st.offsetY)
+	st.selection = area{start: coordinate, end: coordinate}
+}
+
+func (st *sScrollTextView) mouseMove(coordinate Coordinate) {
+	coordinate.addY(st.offsetY)
+	st.selection.end = coordinate
+}
+
+func (st *sScrollTextView) mouseUp(coordinate Coordinate) {
+	coordinate.addY(st.offsetY)
+	st.selection.end = coordinate
+}
+
+func (st *sScrollTextView) dblclick(coordinate Coordinate) {
+	st.selection = st.getWordArea(coordinate)
+}
+
+func (st *sScrollTextView) tripeClick(coordinate Coordinate) {
+	coordinate.addY(st.offsetY)
+	st.selection = area{
+		start: Coordinate{0, coordinate.Y},
+		end:   Coordinate{1 << 24, coordinate.Y},
+	}
+}
+
+func (st *sScrollTextView) inSelection(coordinate Coordinate) bool {
+	coordinate.addY(st.offsetY)
+	return st.selection.Contains(coordinate)
+}
+
 type TRenderer struct {
 	tscreen        tcell.Screen
-	selection      area
 	scrollTextView *sScrollTextView
 
 	schema        Schema
@@ -262,7 +296,6 @@ type TRenderer struct {
 func newTRenderer(tscreen tcell.Screen, schema Schema, promptFactory PromptFactory) *TRenderer {
 	return &TRenderer{
 		tscreen:        tscreen,
-		selection:      area{Coordinate{0, 0}, Coordinate{0, 0}},
 		scrollTextView: newScrollTextView(),
 		schema:         schema,
 		promptFactory:  promptFactory,
@@ -321,17 +354,6 @@ func (tr *TRenderer) render(renderContext *RenderContext, abort bool, accept boo
 	//    写入屏幕输出
 	screen := tr.getNewScreen(renderContext)
 	tr.updateWithScreen(screen)
-
-	//     检查输入中是否有选中的文本
-	if renderContext.selection.exist() {
-		sel := renderContext.selection
-		inputStartCoordinate := tr.scrollTextView.getInputStartCoordinate()
-		start := screen.getCoordinate(sel.start.Row, sel.start.Col)
-		start.add(&inputStartCoordinate)
-		end := screen.getCoordinate(sel.end.Row, sel.end.Col)
-		end.add(&inputStartCoordinate)
-		tr.selection = area{start: start, end: end}
-	}
 
 	//    用户输入完毕或者放弃输入或者退出，另起一行
 	if accept || abort {
@@ -416,7 +438,7 @@ func (tr *TRenderer) Show() {
 				if colorStyle, ok := datum.style.(*terminalcolor.ColorStyle); ok {
 					tstyle = terminalcolor.ToTcellStyle(colorStyle)
 				}
-				if tr.selection.Contains(Coordinate{datum.x, y}) {
+				if tr.scrollTextView.inSelection(Coordinate{datum.x, y}) {
 					tstyle = tstyle.Reverse(true)
 				}
 				for i, r := range datum.char {
@@ -456,27 +478,27 @@ func (tr *TRenderer) LineInTextArea(y int) bool {
 	return tr.scrollTextView.containLine(y)
 }
 
-// SelectWord 选择指定坐标处的单词（鼠标双击触发）
-func (tr *TRenderer) SelectWord(coordinate Coordinate) {
-	tr.selection = tr.scrollTextView.getWordArea(coordinate)
-}
-
 // MouseDown 鼠标（左键）按下
 func (tr *TRenderer) MouseDown(coordinate Coordinate) {
-	tr.selection = area{
-		start: coordinate,
-		end:   coordinate,
-	}
+	tr.scrollTextView.mouseDown(coordinate)
+}
+
+func (tr *TRenderer) MouseMove(coordinate Coordinate) {
+	tr.scrollTextView.mouseMove(coordinate)
+}
+
+func (tr *TRenderer) MouseUp(coordinate Coordinate) {
+	tr.scrollTextView.mouseUp(coordinate)
 }
 
 // Dblclick 鼠标双击
 func (tr *TRenderer) Dblclick(coordinate Coordinate) {
-	tr.SelectWord(coordinate)
+	tr.scrollTextView.dblclick(coordinate)
 }
 
 // TripeClick 鼠标三击
 func (tr *TRenderer) TripeClick(coordinate Coordinate) {
-
+	tr.scrollTextView.tripeClick(coordinate)
 }
 
 // TriggerEventKey 键盘事件触发

@@ -95,6 +95,14 @@ func (c *Coordinate) add(other *Coordinate) {
 	c.Y += other.Y
 }
 
+func (c *Coordinate) addX(n int) {
+	c.X += n
+}
+
+func (c *Coordinate) addY(n int) {
+	c.Y += n
+}
+
 type Location struct {
 	Row int
 	Col int

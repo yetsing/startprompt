@@ -559,7 +559,6 @@ func (l *Line) GetRenderContext() *RenderContext {
 		code,
 		completeState,
 		l.Document(),
-		l.selection,
 	)
 }
 
@@ -742,7 +741,19 @@ func (l *Line) ToMode(modes ...linemode.LineMode) {
 func (l *Line) MouseDown(location Location) {
 	pos := l.Document().translateRowColToIndex(location.Row, location.Col)
 	l.SetCursorPosition(pos)
-	l.selection = _LineArea{}
+	l.selection = _LineArea{start: location, end: location}
+}
+
+func (l *Line) MouseMove(location Location) {
+	pos := l.Document().translateRowColToIndex(location.Row, location.Col)
+	l.SetCursorPosition(pos)
+	l.selection.end = location
+}
+
+func (l *Line) MouseUp(location Location) {
+	pos := l.Document().translateRowColToIndex(location.Row, location.Col)
+	l.SetCursorPosition(pos)
+	l.selection.end = location
 }
 
 func (l *Line) Dblclick(location Location) {
