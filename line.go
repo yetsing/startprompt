@@ -734,17 +734,24 @@ func (l *Line) ToMode(modes ...linemode.LineMode) {
 	}
 }
 
-func (l *Line) MouseDown(location Location) {
+func (l *Line) MouseDown(info *MouseInfoOfInput) {
+	location := info.location
 	if location.Row == -1 || location.Col == -1 {
 		l.selection = _LineArea{-1, -1}
-		return
+	} else {
+		pos := l.Document().translateRowColToIndex(location.Row, location.Col)
+		l.SetCursorPosition(pos)
+		l.selection = _LineArea{start: pos, end: pos}
 	}
-	pos := l.Document().translateRowColToIndex(location.Row, location.Col)
-	l.SetCursorPosition(pos)
-	l.selection = _LineArea{start: pos, end: pos}
+	if info.completeIndex != -1 {
+		l.gotoCompletion(info.completeIndex)
+	}
 }
 
 func (l *Line) MouseMove(location Location) {
+	if location.Row == -1 || location.Col == -1 {
+		return
+	}
 	pos := l.Document().translateRowColToIndex(location.Row, location.Col)
 	l.SetCursorPosition(pos)
 	if l.selection.start != -1 {
@@ -753,6 +760,9 @@ func (l *Line) MouseMove(location Location) {
 }
 
 func (l *Line) MouseUp(location Location) {
+	if location.Row == -1 || location.Col == -1 {
+		return
+	}
 	pos := l.Document().translateRowColToIndex(location.Row, location.Col)
 	l.SetCursorPosition(pos)
 	if l.selection.start != -1 {

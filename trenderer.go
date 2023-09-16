@@ -28,6 +28,13 @@ func (a *area) Contains(coordinate Coordinate) bool {
 	return coordinate.Y > start.Y && coordinate.Y < end.Y
 }
 
+// RectContains 判断点是否在开始和结束组成的矩形中
+func (a *area) RectContains(coordinate Coordinate) bool {
+	start := a.getStart()
+	end := a.getEnd()
+	return start.Y <= coordinate.Y && coordinate.Y < end.Y && start.X <= coordinate.X && coordinate.X < end.X
+}
+
 func (a *area) isEmpty() bool {
 	start := a.getStart()
 	end := a.getEnd()
@@ -101,13 +108,12 @@ func (st *sScrollTextView) appendAt(vy int, xchar xChar) {
 func (st *sScrollTextView) readScreen(screen *Screen) {
 	lastCoordinate := screen.getLastCoordinate()
 	buffer := screen.GetBuffer()
+	//    清空之前的输入数据
+	st.data = st.data[:st.inputY]
+	st.growTo(st.inputY + lastCoordinate.Y)
 	for y := 0; y <= lastCoordinate.Y; y++ {
 		vy := st.inputY + y
-		st.growTo(vy)
-		//    清空当前行数据
-		st.data[vy] = nil
 		lineBuffer, found := buffer[y]
-
 		if found {
 			//    当前行最大的 x 坐标
 			endX := 0
@@ -364,9 +370,19 @@ func (st *sScrollTextView) update() {
 
 }
 
+// MouseInfoOfInput 在当前输入中的一些鼠标信息
+type MouseInfoOfInput struct {
+	//    鼠标位置在输入的行列
+	location Location
+	//    鼠标位置在哪个补全项上，用于点击时切换补全
+	completeIndex int
+}
+
 type TRenderer struct {
 	tscreen        tcell.Screen
 	scrollTextView *sScrollTextView
+	//    补全菜单信息
+	completionMenuInfo *cCompletionMenuInfo
 
 	schema        Schema
 	promptFactory PromptFactory
@@ -418,8 +434,15 @@ func (tr *TRenderer) getNewScreen(renderContext *RenderContext) *Screen {
 	screen.setSecondLinePrefix(nil)
 
 	//    写入补全菜单
+	tr.completionMenuInfo = nil
 	if renderContext.completeState != nil {
-		newCompletionMenu(screen, renderContext.completeState, 7).write()
+		menu := newCompletionMenu(screen, renderContext.completeState, 7)
+		menu.write()
+		tr.completionMenuInfo = menu.getInfo()
+		//    转换补全的坐标为窗口坐标
+		inputStartCoordinate := tr.scrollTextView.getInputStartCoordinate()
+		tr.completionMenuInfo.area.start.addY(inputStartCoordinate.Y)
+		tr.completionMenuInfo.area.end.addY(inputStartCoordinate.Y)
 	}
 
 	return screen
@@ -559,6 +582,15 @@ func (tr *TRenderer) GetClosetLocation(coordinate Coordinate) (Location, bool) {
 		}
 	}
 	return Location{-1, -1}, false
+}
+
+func (tr *TRenderer) GetMouseInfoOfInput(coordinate Coordinate) *MouseInfoOfInput {
+	loc, _ := tr.GetClosetLocation(coordinate)
+	var completeIndex int
+	if tr.completionMenuInfo != nil {
+		completeIndex = tr.completionMenuInfo.getCompleteIndex(coordinate)
+	}
+	return &MouseInfoOfInput{loc, completeIndex}
 }
 
 // LineInInputArea InInputArea 判断坐标 y 所在行是否在当前输入区域内

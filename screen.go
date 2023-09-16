@@ -101,9 +101,9 @@ func (c *Coordinate) gt(other *Coordinate) bool {
 	}
 }
 
-func (c *Coordinate) add(other *Coordinate) {
-	c.X += other.X
-	c.Y += other.Y
+func (c *Coordinate) add(x int, y int) {
+	c.X += x
+	c.Y += y
 }
 
 func (c *Coordinate) addX(n int) {

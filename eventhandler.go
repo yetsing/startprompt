@@ -50,10 +50,8 @@ func (tb *TBaseEventHandler) HandleEventMouse(em *EventMouse) {
 	case EventTypeMouseWheelDown:
 		tcli.GetRenderer().WheelDown(1)
 	case EventTypeMouseDown:
-		if renderer.LineInInputArea(em.GetCoordinate().Y) {
-			loc, _ := renderer.GetClosetLocation(em.GetCoordinate())
-			line.MouseDown(loc)
-		}
+		info := renderer.GetMouseInfoOfInput(em.GetCoordinate())
+		line.MouseDown(info)
 		renderer.MouseDown(em.GetCoordinate())
 	case EventTypeMouseMove:
 		if renderer.LineInInputArea(em.GetCoordinate().Y) {
