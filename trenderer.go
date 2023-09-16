@@ -352,6 +352,10 @@ func (st *sScrollTextView) getSelectionText() string {
 	return builder.String()
 }
 
+func (st *sScrollTextView) cancelSelection() {
+	st.selection = area{}
+}
+
 func (st *sScrollTextView) update() {
 	if st.selection.isEmpty() {
 		return
@@ -466,6 +470,10 @@ func (tr *TRenderer) render(renderContext *RenderContext, abort bool, accept boo
 	//    写入屏幕输出
 	screen := tr.getNewScreen(renderContext)
 	tr.updateWithScreen(screen)
+
+	if renderContext.cancelSelection {
+		tr.scrollTextView.cancelSelection()
+	}
 
 	//    用户输入完毕或者放弃输入或者退出，另起一行
 	if accept || abort {
@@ -586,7 +594,7 @@ func (tr *TRenderer) GetClosetLocation(coordinate Coordinate) (Location, bool) {
 
 func (tr *TRenderer) GetMouseInfoOfInput(coordinate Coordinate) *MouseInfoOfInput {
 	loc, _ := tr.GetClosetLocation(coordinate)
-	var completeIndex int
+	completeIndex := -1
 	if tr.completionMenuInfo != nil {
 		completeIndex = tr.completionMenuInfo.getCompleteIndex(coordinate)
 	}

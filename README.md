@@ -73,7 +73,7 @@ func main() {
 - 支持常用快捷键操作，可看 [keybinding](./docs/keybinding.md)
 - 支持输入历史（提供内存和文件两种实现）
 - 支持语法高亮（通过自定义分词器实现）
-- 支持鼠标 (TCommandLine 支持)
+- 支持鼠标操作，可看 [mouse](./docs/mouse.md) (TCommandLine 支持)
 
 有两个实现 `CommandLine` `TCommandLine` ,
 `TCommandLine` 基于 [tcell](https://github.com/gdamore/tcell) 实现，增加鼠标支持

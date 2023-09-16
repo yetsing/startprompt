@@ -1,19 +1,22 @@
 package startprompt
 
 type RenderContext struct {
-	code          Code
-	completeState *cCompletionState
-	document      *Document
+	completeState   *cCompletionState
+	document        *Document
+	code            Code
+	cancelSelection bool
 }
 
 func newRenderContext(
 	code Code,
 	completeState *cCompletionState,
 	document *Document,
+	cancelSelection bool,
 ) *RenderContext {
 	return &RenderContext{
-		code:          code,
-		completeState: completeState,
-		document:      document,
+		code:            code,
+		completeState:   completeState,
+		document:        document,
+		cancelSelection: cancelSelection,
 	}
 }

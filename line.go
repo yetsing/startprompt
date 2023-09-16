@@ -74,6 +74,10 @@ type Line struct {
 
 	//    选中区域
 	selection _LineArea
+	//    取消选中
+	//    当有文本被选中时，输入会替换掉选中的文本，此时选中已被取消
+	//    需要通知 renderer 不要再渲染选中
+	cancelSelection bool
 }
 
 func newLine(
@@ -551,11 +555,14 @@ func (l *Line) GetRenderContext() *RenderContext {
 		completeState = nil
 	}
 
-	return newRenderContext(
+	renderCtx := newRenderContext(
 		code,
 		completeState,
 		l.Document(),
+		l.cancelSelection,
 	)
+	l.cancelSelection = false
+	return renderCtx
 }
 
 // HistoryForward 选择下一个历史输入
@@ -649,6 +656,12 @@ func (l *Line) OverwriteText(data []rune, moveCursor bool) {
 // InsertText 在 cursorPosition 的位置插入 data
 // moveCursor 表示插入后是否移动光标
 func (l *Line) InsertText(data []rune, moveCursor bool) {
+	//    输入中有选中文本，直接删除
+	if l.selection.start != -1 && l.selection.end > l.selection.start {
+		l.DeleteCharacterBeforeCursor(l.selection.end - l.selection.start)
+		l.selection = _LineArea{-1, -1}
+		l.cancelSelection = true
+	}
 	l.insertText(data, moveCursor)
 
 	if l.CompleteAfterInsertText() {
