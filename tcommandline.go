@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+	"golang.design/x/clipboard"
 	"golang.org/x/term"
 )
 
@@ -78,6 +79,12 @@ func NewTCommandLine(option *CommandLineOption) (*TCommandLine, error) {
 		return nil, fmt.Errorf("not in a terminal")
 	}
 
+	//     Init returns an error if the package is not ready for use.
+	err := clipboard.Init()
+	if err != nil {
+		return nil, err
+	}
+
 	//    update option default
 	actualOption := defaultTCommandLineOption.copy()
 	if option != nil {
@@ -97,6 +104,7 @@ func NewTCommandLine(option *CommandLineOption) (*TCommandLine, error) {
 	s.EnableMouse()
 	s.EnablePaste()
 	s.Clear()
+	s.SetCursorStyle(tcell.CursorStyleSteadyBar)
 
 	c := &TCommandLine{
 		tscreen: s,
@@ -295,6 +303,7 @@ func (tc *TCommandLine) runLoop() {
 			break
 		}
 
+		renderer.update()
 		//    画出用户输入
 		renderer.render(line.GetRenderContext(), false, false)
 	}

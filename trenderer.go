@@ -1,9 +1,12 @@
 package startprompt
 
 import (
+	"strings"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/yetsing/startprompt/terminalcolor"
 	"github.com/yetsing/startprompt/token"
+	"golang.design/x/clipboard"
 )
 
 type area struct {
@@ -12,15 +15,47 @@ type area struct {
 }
 
 func (a *area) Contains(coordinate Coordinate) bool {
-	if a.start.Y == a.end.Y {
-		return a.start.Y == coordinate.Y && a.start.X <= coordinate.X && coordinate.X < a.end.X
+	start := a.getStart()
+	end := a.getEnd()
+	if start.Y == end.Y {
+		return start.Y == coordinate.Y && start.X <= coordinate.X && coordinate.X < end.X
 	}
-	if coordinate.Y == a.start.Y {
-		return a.start.X <= coordinate.X
-	} else if coordinate.Y == a.end.Y {
-		return coordinate.X < a.end.X
+	if coordinate.Y == start.Y {
+		return start.X <= coordinate.X
+	} else if coordinate.Y == end.Y {
+		return coordinate.X < end.X
 	}
-	return coordinate.Y > a.start.Y && coordinate.Y < a.end.Y
+	return coordinate.Y > start.Y && coordinate.Y < end.Y
+}
+
+func (a *area) isEmpty() bool {
+	start := a.getStart()
+	end := a.getEnd()
+	return start.Y > end.Y || (start.Y == end.Y && start.X >= end.X)
+}
+
+func (a *area) getStart() Coordinate {
+	if a.start.gt(&a.end) {
+		return a.end
+	}
+	return a.start
+}
+
+func (a *area) getEnd() Coordinate {
+	if a.start.gt(&a.end) {
+		return a.start
+	}
+	return a.end
+}
+
+// limitTo 坐标超出 coordinate 的设为 coordinate
+func (a *area) limitTo(coordinate Coordinate) {
+	if a.start.gt(&coordinate) {
+		a.start = coordinate
+	}
+	if a.end.gt(&coordinate) {
+		a.end = coordinate
+	}
 }
 
 type xChar struct {
@@ -29,6 +64,8 @@ type xChar struct {
 }
 
 type sScrollTextView struct {
+	//    选中文本
+	selectionText string
 	//    行列二维数组
 	data [][]xChar
 	//    当前输入左上角在 data 第几行
@@ -97,10 +134,25 @@ func (st *sScrollTextView) readScreen(screen *Screen) {
 // getLineAt 传入窗口坐标 y ，返回对应行数据
 func (st *sScrollTextView) getLineAt(y int) ([]xChar, bool) {
 	vy := st.offsetY + y
-	if vy <= len(st.data)-1 {
-		return st.data[vy], true
+	return st.getLine(vy)
+}
+
+func (st *sScrollTextView) getLine(n int) ([]xChar, bool) {
+	if n <= len(st.data)-1 {
+		return st.data[n], true
 	}
 	return nil, false
+}
+
+func (st *sScrollTextView) getLastCoordinate() Coordinate {
+	y := len(st.data) - 1
+	lastLine := st.data[y]
+	x := 0
+	if len(lastLine) > 0 {
+		ch := lastLine[len(lastLine)-1]
+		x = ch.x + ch.width()
+	}
+	return Coordinate{x, y}
 }
 
 // restoreScroll 恢复原本的滚动位置
@@ -194,27 +246,21 @@ func (st *sScrollTextView) getClosetCharCoordinate(coordinate Coordinate) (Coord
 
 // getWordArea 返回窗口坐标处的单词区域（窗口坐标）
 func (st *sScrollTextView) getWordArea(coordinate Coordinate) area {
-	DebugLog("coordinate=%+v, offsetY=%d", coordinate, st.offsetY)
 	lineData, found := st.getLineAt(coordinate.Y)
 	if !found {
-		DebugLog("not found lineData %+v", coordinate)
 		return area{}
 	}
 	//    找到窗口坐标所在字符索引
 	index := -1
 	for i, datum := range lineData {
-		DebugLog("found <%s> index=%d", datum.char, index)
 		if datum.x > coordinate.X {
 			break
 		}
 		index = i
 	}
 	if index == -1 {
-		DebugLog("not found index %+v", coordinate)
 		return area{}
 	}
-
-	DebugLog("found index=%d", index)
 
 	length := len(lineData)
 	//    默认是行尾
@@ -235,7 +281,6 @@ func (st *sScrollTextView) getWordArea(coordinate Coordinate) area {
 			break
 		}
 	}
-	DebugLog("word area start=%+v end=%+v", start, end)
 	return area{
 		start: start,
 		end:   end,
@@ -256,6 +301,10 @@ func (st *sScrollTextView) mouseMove(coordinate Coordinate) {
 func (st *sScrollTextView) mouseUp(coordinate Coordinate) {
 	coordinate.addY(st.offsetY)
 	st.selection.end = coordinate
+
+	//    如果坐标超出范围，将其设置为最后一个坐标
+	last := st.getLastCoordinate()
+	st.selection.limitTo(last)
 }
 
 func (st *sScrollTextView) dblclick(coordinate Coordinate) {
@@ -270,9 +319,49 @@ func (st *sScrollTextView) tripeClick(coordinate Coordinate) {
 	}
 }
 
+// inSelection 判断窗口坐标是否在选中区域内
 func (st *sScrollTextView) inSelection(coordinate Coordinate) bool {
 	coordinate.addY(st.offsetY)
 	return st.selection.Contains(coordinate)
+}
+
+func (st *sScrollTextView) getSelectionText() string {
+	var builder strings.Builder
+	start := st.selection.getStart()
+	end := st.selection.getEnd()
+	DebugLog("getSelectionText start=%+v end=%+v", start, end)
+	for y := start.Y; y <= end.Y; y++ {
+		lineData, found := st.getLine(y)
+		if found {
+			for _, datum := range lineData {
+				if st.selection.Contains(Coordinate{datum.x, y}) {
+					builder.WriteString(datum.char)
+				}
+			}
+		}
+		if y != end.Y {
+			builder.WriteByte('\n')
+		}
+	}
+	return builder.String()
+}
+
+func (st *sScrollTextView) update() {
+	if st.selection.isEmpty() {
+		return
+	}
+
+	DebugLog("selection %+v", st.selection)
+	//   将选中文本复制到系统剪贴板
+	//   文本发生变化时复制一次
+	text := st.getSelectionText()
+	DebugLog("selection text: %s", text)
+	if text != st.selectionText {
+		DebugLog("copy text")
+		clipboard.Write(clipboard.FmtText, []byte(text))
+		st.selectionText = text
+	}
+
 }
 
 type TRenderer struct {
@@ -380,6 +469,10 @@ func (tr *TRenderer) renderOutput(output string) {
 	tr.scrollTextView.inputToEnd()
 	tr.cursorRelativeCoordinate = Coordinate{}
 	tr.Show()
+}
+
+func (tr *TRenderer) update() {
+	tr.scrollTextView.update()
 }
 
 func (tr *TRenderer) getCursorCoordinate() Coordinate {

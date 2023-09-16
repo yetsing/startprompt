@@ -90,6 +90,17 @@ func (c *Coordinate) equal(other *Coordinate) bool {
 	return c.X == other.X && c.Y == other.Y
 }
 
+// gte 大于等于
+func (c *Coordinate) gt(other *Coordinate) bool {
+	if c.Y > other.Y {
+		return true
+	} else if c.Y == other.Y {
+		return c.X > other.X
+	} else {
+		return false
+	}
+}
+
 func (c *Coordinate) add(other *Coordinate) {
 	c.X += other.X
 	c.Y += other.Y
