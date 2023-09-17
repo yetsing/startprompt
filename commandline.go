@@ -156,7 +156,7 @@ func NewCommandLine(option *CommandLineOption) (*CommandLine, error) {
 		option: actualOption,
 
 		redrawChannel: make(chan rune, 1024),
-		readChannel:   make(chan rune),
+		readChannel:   make(chan rune, 16),
 	}
 	c.setup()
 	return c, nil
@@ -337,8 +337,11 @@ func (c *CommandLine) ReadInput() (string, error) {
 	return inputText, nil
 }
 
-func (c *CommandLine) ReadByte() (byte, error) {
-	return c.reader.ReadByte()
+func (c *CommandLine) ReadRune() (rune, error) {
+	if c.readError != nil {
+		return 0, c.readError
+	}
+	return <-c.readChannel, nil
 }
 
 // GetLine 获取当前的 Line 对象，如果为 nil ，则 panic
