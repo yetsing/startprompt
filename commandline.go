@@ -337,6 +337,10 @@ func (c *CommandLine) ReadInput() (string, error) {
 	return inputText, nil
 }
 
+func (c *CommandLine) ReadByte() (byte, error) {
+	return c.reader.ReadByte()
+}
+
 // GetLine 获取当前的 Line 对象，如果为 nil ，则 panic
 func (c *CommandLine) GetLine() *Line {
 	if c.line == nil {
