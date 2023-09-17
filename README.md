@@ -6,6 +6,8 @@ start build prompt commandline application
 
 ~~复刻划掉~~参考 [python-prompt-toolkit](https://github.com/prompt-toolkit/python-prompt-toolkit) 库
 
+支持 Linux MacOS
+
 # hello world
 
 ### CommandLine
