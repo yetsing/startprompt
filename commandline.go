@@ -337,6 +337,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 	return inputText, nil
 }
 
+// ReadRune 读取 rune ，不能与 ReadInput 同时调用
 func (c *CommandLine) ReadRune() (rune, error) {
 	if c.readError != nil {
 		return 0, c.readError

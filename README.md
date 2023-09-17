@@ -77,7 +77,7 @@ func main() {
 - 支持语法高亮（通过自定义分词器实现）
 - 支持鼠标操作，可看 [mouse](./docs/mouse.md) (TCommandLine 支持)
 
-有两个实现 `CommandLine` `TCommandLine` ,
+有两个实现 `CommandLine` `TCommandLine` ，**这两个在细节行为上有差异**，
 `TCommandLine` 基于 [tcell](https://github.com/gdamore/tcell) 实现，增加鼠标支持
 
 # 更多例子

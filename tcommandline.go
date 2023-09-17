@@ -59,6 +59,8 @@ type TCommandLine struct {
 	//    下面两个用于 tcell.Screen ChannelEvents
 	tEventChannel chan tcell.Event
 	tQuitChannel  chan struct{}
+	//    缓冲读取的 EventKey
+	tEventKeyChannel chan *tcell.EventKey
 	//    是否正在读取用户输入
 	isReadingInput bool
 	running        bool
@@ -159,6 +161,11 @@ func (tc *TCommandLine) Close() {
 	close(tc.redrawChannel)
 	close(tc.outputChannel)
 	tc.wg.Wait()
+	//    继续读取事件
+	//    因为 tcell 内部也是用 channel 传递的事件
+	//    如果有大量事件上报，又没有读取事件，tcell 内部就可能卡在 channel send 发送
+	//    从而导致调用 tcell.Screen.Fini 卡住（tcell 内部开了 goroutine 读取事件发送到 channel ， Fini 会等待这些 goroutine 结束）
+	//    比如说开启鼠标支持，在 Close 前调用了 time.Sleep ，这个时候就会有大量的鼠标事件堆积
 	tc.discardTEvent()
 	tc.tscreen.Fini()
 	if maybePanic != nil {
@@ -193,6 +200,16 @@ func (tc *TCommandLine) ReadInput() (string, error) {
 	return in.text, in.err
 }
 
+// ReadRune 读取 rune ，不能与 ReadInput 同时调用
+func (tc *TCommandLine) ReadRune() (rune, error) {
+	for event := range tc.tEventKeyChannel {
+		if event.Key() == tcell.KeyRune {
+			return event.Rune(), nil
+		}
+	}
+	return 0, nil
+}
+
 func (tc *TCommandLine) run() {
 	defer func() {
 		maybePanic := recover()
@@ -202,22 +219,23 @@ func (tc *TCommandLine) run() {
 			panic(maybePanic)
 		}
 	}()
-	tc.flushOutput()
 	for tc.running {
+		tc.tEventKeyChannel = make(chan *tcell.EventKey, 1024)
+		tc.runOther()
+		close(tc.tEventKeyChannel)
 		tc.runLoop()
-		tc.flushOutput()
-		//    后台处理鼠标事件
 	}
 	tc.flushOutput()
-	//    继续读取事件
-	//    因为 tcell 内部也是用 channel 传递的事件
-	//    如果有大量事件上报，又没有读取事件，tcell 内部就可能卡在 channel send 发送
-	//    从而导致调用 tcell.Screen.Fini 卡住（tcell 内部开了 goroutine 读取事件发送到 channel ， Fini 会等待这些 goroutine 结束）
-	//    比如说开启鼠标支持，在 Close 前调用了 time.Sleep ，这个时候就会有大量的鼠标事件堆积
 	DebugLog("run stopped")
 }
 
+// runLoop 在用户调用 ReadInput 时执行
+// 对应用户输入文本阶段
 func (tc *TCommandLine) runLoop() {
+	if !tc.running {
+		return
+	}
+	DebugLog("runLoop")
 	renderer := tc.renderer
 	line := newLine(
 		tc.option.CodeFactory,
@@ -237,24 +255,32 @@ func (tc *TCommandLine) runLoop() {
 	resetFunc()
 
 	for {
-		select {
-		case <-tc.closeChannel:
-			DebugLog("close")
-			return
-		case <-tc.redrawChannel:
-			DebugLog("redraw")
-			//    将缓冲的信息都读取出来，以免循环中不断触发
-			loop := len(tc.redrawChannel)
-			for i := 0; i < loop; i++ {
-				<-tc.redrawChannel
-			}
-			//    渲染用户输入
-			renderer.render(line.GetRenderContext(), false, false)
-			continue
-		case ev := <-tc.tEventChannel:
-			//    没有触发事件，直接进入下一次循环，避免没必要的渲染
-			if !tc.emitEvent(ev) {
+		if len(tc.tEventKeyChannel) == 0 {
+			select {
+			case <-tc.closeChannel:
+				DebugLog("close")
+				return
+			case <-tc.redrawChannel:
+				DebugLog("redraw")
+				//    将缓冲的信息都读取出来，以免循环中不断触发
+				loop := len(tc.redrawChannel)
+				for i := 0; i < loop; i++ {
+					<-tc.redrawChannel
+				}
+				//    渲染用户输入
+				renderer.render(line.GetRenderContext(), false, false)
 				continue
+			case ev := <-tc.tEventChannel:
+				//    没有触发事件，直接进入下一次循环，避免没必要的渲染
+				if !tc.emitEvent(ev) {
+					continue
+				}
+			}
+		} else {
+			for eventKey := range tc.tEventKeyChannel {
+				if !tc.emitEvent(eventKey) {
+					continue
+				}
 			}
 		}
 
@@ -306,6 +332,58 @@ func (tc *TCommandLine) runLoop() {
 		renderer.update()
 		//    画出用户输入
 		renderer.render(line.GetRenderContext(), false, false)
+	}
+}
+
+// runOther 在用户调用 ReadInput 前和返回后执行
+// 对应非用户输入阶段，因为我们接管了鼠标操作，所以还要继续处理鼠标事件
+func (tc *TCommandLine) runOther() {
+	if !tc.running {
+		return
+	}
+	DebugLog("runOther")
+	renderer := tc.renderer
+
+	for {
+		select {
+		case <-tc.closeChannel:
+			DebugLog("close")
+			return
+		case <-tc.redrawChannel:
+			DebugLog("redraw")
+			//    将缓冲的信息都读取出来，以免循环中不断触发
+			loop := len(tc.redrawChannel)
+			for i := 0; i < loop; i++ {
+				<-tc.redrawChannel
+			}
+			renderer.Show()
+			continue
+		case ev := <-tc.tEventChannel:
+			switch tev := ev.(type) {
+			case *tcell.EventKey:
+				//    这里用 select 监听写入，是为了防止阻塞在这里，ref: https://stackoverflow.com/a/25657232
+				//    如果 tEventKeyChannel 满了，丢弃事件
+				select {
+				case tc.tEventKeyChannel <- tev:
+				default:
+				}
+			default:
+				//    没有触发事件，直接进入下一次循环，避免没必要的渲染
+				if !tc.emitEvent(ev) {
+					continue
+				}
+			}
+		case output := <-tc.outputChannel:
+			//    用户调用了 ReadInput
+			if output.flush {
+				return
+			}
+			renderer.renderOutput(output.text)
+			continue
+		}
+
+		renderer.update()
+		renderer.Show()
 	}
 }
 
