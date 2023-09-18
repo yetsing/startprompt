@@ -271,8 +271,21 @@ func (tc *TCommandLine) runLoop() {
 				renderer.render(line.GetRenderContext(), false, false)
 				continue
 			case ev := <-tc.tEventChannel:
+				eventEmited := tc.emitEvent(ev)
+				//    非阻塞的读取后续事件，优化粘贴大量文本的情况，快速处理，减少多次 render 导致的停顿感
+				eventReading := true
+				for eventReading {
+					select {
+					case ev = <-tc.tEventChannel:
+						if tc.emitEvent(ev) {
+							eventEmited = true
+						}
+					default:
+						eventReading = false
+					}
+				}
 				//    没有触发事件，直接进入下一次循环，避免没必要的渲染
-				if !tc.emitEvent(ev) {
+				if !eventEmited {
 					continue
 				}
 			}

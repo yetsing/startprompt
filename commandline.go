@@ -207,10 +207,21 @@ func (c *CommandLine) RunInExecutor(callback func()) {
 	go callback()
 }
 
-func (c *CommandLine) pollEvent() (rune, PollEvent) {
+func (c *CommandLine) pollEvent() ([]rune, PollEvent) {
 	select {
 	case r := <-c.readChannel:
-		return r, PollEventInput
+		rbuf := []rune{r}
+		//    非阻塞的读取后续事件，优化粘贴大量文本的情况，快速处理，减少多次 render 导致的停顿感
+		runeReading := true
+		for runeReading {
+			select {
+			case r = <-c.readChannel:
+				rbuf = append(rbuf, r)
+			default:
+				runeReading = false
+			}
+		}
+		return rbuf, PollEventInput
 	case <-c.redrawChannel:
 		//    将缓冲的信息都读取出来，以免循环中不断触发
 		//    或许加个重绘时间限制更好，比如 1s 只能重画 30 次？
@@ -218,9 +229,9 @@ func (c *CommandLine) pollEvent() (rune, PollEvent) {
 		for i := 0; i < loop; i++ {
 			<-c.redrawChannel
 		}
-		return 0, PollEventRedraw
+		return nil, PollEventRedraw
 	case <-time.After(c.inputTimeout):
-		return 0, PollEventTimeout
+		return nil, PollEventTimeout
 	}
 }
 
@@ -267,20 +278,18 @@ func (c *CommandLine) ReadInput() (string, error) {
 		}
 	}()
 
-	var r rune
 	var inputText string
 	for {
 		//    读取用户输入
-		var pollEvent PollEvent
-		r, pollEvent = c.pollEvent()
+		runes, pollEvent := c.pollEvent()
 		switch pollEvent {
 		case PollEventInput:
 			if c.readError != nil {
 				return "", c.readError
 			}
-			DebugLog("read rune: %d", r)
+			DebugLog("read rune: [%d, ...] len=%d", runes[0], len(runes))
 			//    识别用户输入，触发事件
-			is.Feed(r)
+			is.FeedRunes(runes)
 		case PollEventTimeout:
 			//    读取用户输入超时
 			if !is.FeedTimeout() {

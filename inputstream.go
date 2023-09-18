@@ -53,6 +53,12 @@ func (is *InputStream) FeedData(data string) {
 	}
 }
 
+func (is *InputStream) FeedRunes(runes []rune) {
+	for _, r := range runes {
+		is.Feed(r)
+	}
+}
+
 // Feed 根据输入触发对应的事件
 func (is *InputStream) Feed(r rune) {
 	var buffer []rune

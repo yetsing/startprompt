@@ -12,7 +12,9 @@ import (
 )
 
 func main() {
-	c, err := startprompt.NewCommandLine(nil)
+	c, err := startprompt.NewCommandLine(&startprompt.CommandLineOption{
+		//EnableDebug: true,
+	})
 	if err != nil {
 		fmt.Printf("failed to startprompt.NewCommandLine: %v\n", err)
 		return
