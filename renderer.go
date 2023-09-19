@@ -69,8 +69,16 @@ func (r *Renderer) renderToStr(renderContext *RenderContext, abort bool, accept 
 	var buf bytes.Buffer
 
 	//    移动光标到输入的左上方
+	offsetY := 0
 	if r.cursorCoordinate.Y > 0 {
-		buf.WriteString(terminalcode.CursorUp(r.cursorCoordinate.Y))
+		height := r.getSize().height
+		//    当前输入的文本太多，窗口显示不全
+		if r.cursorCoordinate.Y >= height {
+			offsetY = r.cursorCoordinate.Y - height + 1
+			buf.WriteString(terminalcode.CursorUp(height))
+		} else {
+			buf.WriteString(terminalcode.CursorUp(r.cursorCoordinate.Y))
+		}
 	}
 	buf.WriteString(terminalcode.CarriageReturn)
 	//    删除当前行到屏幕下方
@@ -78,7 +86,7 @@ func (r *Renderer) renderToStr(renderContext *RenderContext, abort bool, accept 
 
 	//    生成屏幕输出
 	screen := r.getNewScreen(renderContext)
-	o, lastCoordinate := screen.Output()
+	o, lastCoordinate := screen.Output(offsetY)
 	buf.WriteString(o)
 
 	//    用户输入完毕或者放弃输入或者退出，另起一行

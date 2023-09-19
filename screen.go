@@ -180,7 +180,7 @@ func (s *Screen) GetBuffer() map[int]map[int]*Char {
 	return s.buffer
 }
 
-func (s *Screen) Output() (string, Coordinate) {
+func (s *Screen) Output(offsetY int) (string, Coordinate) {
 	var result []string
 	var cursorPos Coordinate
 	// 统计一下有多少行，其实就是等于最大的 y + 1
@@ -191,7 +191,7 @@ func (s *Screen) Output() (string, Coordinate) {
 		}
 	}
 	cursorPos.Y = rows - 1
-	for i := 0; i < rows; i++ {
+	for i := offsetY; i < rows; i++ {
 		lineData, found := s.buffer[i]
 		if found {
 			// 统计一下有多少列，其实就是等于最大的 x + 1
