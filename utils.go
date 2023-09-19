@@ -100,6 +100,15 @@ func concatRunes(a ...[]rune) []rune {
 	return result
 }
 
+// insertRunes 将 eles 数据插入 data 的 index 位置处
+// 相当于 data[:index] + eles + data[index:]
+func insertRunes(data []rune, index int, eles []rune) []rune {
+	if index >= len(data) {
+		return append(data, eles...)
+	}
+	return concatRunes(data[:index], eles, data[index:])
+}
+
 func isWordDelimiter(r rune) bool {
 	set := ".()[]{}"
 	return unicode.IsSpace(r) || strings.ContainsRune(set, r)

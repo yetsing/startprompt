@@ -155,8 +155,8 @@ func NewCommandLine(option *CommandLineOption) (*CommandLine, error) {
 		writer: writer,
 		option: actualOption,
 
-		redrawChannel: make(chan rune, 1024),
-		readChannel:   make(chan rune, 16),
+		redrawChannel: make(chan rune, 32),
+		readChannel:   make(chan rune, 1024),
 	}
 	c.setup()
 	return c, nil

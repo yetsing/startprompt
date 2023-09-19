@@ -670,7 +670,8 @@ func (l *Line) InsertText(data []rune, moveCursor bool) {
 }
 
 func (l *Line) insertText(data []rune, moveCursor bool) {
-	result := concatRunes(l.buffer[:l.cursorPosition], data, l.buffer[l.cursorPosition:])
+	result := insertRunes(l.buffer, l.cursorPosition, data)
+	//result := concatRunes(l.buffer[:l.cursorPosition], data, l.buffer[l.cursorPosition:])
 	l.setText(result)
 	if moveCursor {
 		l.SetCursorPosition(l.cursorPosition + len(data))

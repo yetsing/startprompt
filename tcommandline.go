@@ -116,7 +116,7 @@ func NewTCommandLine(option *CommandLineOption) (*TCommandLine, error) {
 		redrawChannel: make(chan struct{}, 16),
 		closeChannel:  make(chan struct{}),
 		outputChannel: make(chan outputStruct, 16),
-		tEventChannel: make(chan tcell.Event, 16),
+		tEventChannel: make(chan tcell.Event, 1024),
 		tQuitChannel:  make(chan struct{}),
 
 		renderer: newTRenderer(s, actualOption.Schema, actualOption.PromptFactory),
