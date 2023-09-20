@@ -10,15 +10,18 @@ import (
 // 参考：https://vt100.net/docs/vt100-ug/chapter3.html
 
 func NewInputStream(handler EventHandler, cli *CommandLine) *InputStream {
-	return &InputStream{handler: handler, cli: cli}
+	return &InputStream{handler: handler, cli: cli, eventBuffer: newEventBuffer()}
 }
 
 type InputStream struct {
-	handler  EventHandler
-	cli      *CommandLine
-	previous string
-	// 是否触发事件
+	handler     EventHandler
+	cli         *CommandLine
+	eventBuffer *EventBuffer
+	previous    string
+	//    是否触发事件
 	isEmitEvent bool
+	//    是否缓冲事件
+	isBufferEvent bool
 }
 
 func (is *InputStream) Reset() {
@@ -54,9 +57,13 @@ func (is *InputStream) FeedData(data string) {
 }
 
 func (is *InputStream) FeedRunes(runes []rune) {
+	//    缓冲并尝试合并事件（比如多次插入可以合成一次），提高处理效率
+	is.openEventBuffer()
 	for _, r := range runes {
 		is.Feed(r)
 	}
+	is.closeEventBuffer()
+	is.flushEventBuffer()
 }
 
 // Feed 根据输入触发对应的事件
@@ -114,7 +121,26 @@ func (is *InputStream) Feed(r rune) {
 func (is *InputStream) callHandler(eventType EventType, a ...rune) {
 	is.isEmitEvent = true
 	event := NewEventKey(eventType, a, is.cli, nil)
-	is.handler.Handle(event)
+	if is.isBufferEvent {
+		is.eventBuffer.append(event)
+	} else {
+		is.handler.Handle(event)
+	}
+}
+
+func (is *InputStream) openEventBuffer() {
+	is.isBufferEvent = true
+}
+
+func (is *InputStream) closeEventBuffer() {
+	is.isBufferEvent = false
+}
+
+func (is *InputStream) flushEventBuffer() {
+	for _, event := range is.eventBuffer.getAll() {
+		is.handler.Handle(event)
+	}
+	is.eventBuffer.reset()
 }
 
 func runeAt(s string, index int) rune {

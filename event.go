@@ -30,6 +30,10 @@ func (ek *EventKey) GetData() []rune {
 	return ek.data
 }
 
+func (ek *EventKey) appendData(data []rune) {
+	ek.data = append(ek.data, data...)
+}
+
 func (ek *EventKey) GetCommandLine() *CommandLine {
 	if ek.cli == nil {
 		panic("not found CommandLine from EventKey")
@@ -86,4 +90,35 @@ func (em *EventMouse) GetTCommandLine() *TCommandLine {
 
 func (em *EventMouse) GetCoordinate() Coordinate {
 	return em.coordinate
+}
+
+type EventBuffer struct {
+	buffer []Event
+}
+
+func newEventBuffer() *EventBuffer {
+	return &EventBuffer{}
+}
+
+func (ebuf *EventBuffer) append(event Event) {
+	length := len(ebuf.buffer)
+	if length > 0 {
+		//    尝试合并事件
+		last := ebuf.buffer[length-1]
+		if last.Type() == event.Type() && event.Type() == EventTypeInsertChar {
+			lastk := last.(*EventKey)
+			eventk := event.(*EventKey)
+			lastk.appendData(eventk.GetData())
+		}
+	} else {
+		ebuf.buffer = append(ebuf.buffer, event)
+	}
+}
+
+func (ebuf *EventBuffer) getAll() []Event {
+	return ebuf.buffer
+}
+
+func (ebuf *EventBuffer) reset() {
+	ebuf.buffer = nil
 }
