@@ -10,17 +10,28 @@ import (
 	"golang.org/x/term"
 )
 
+/*
+功能核心类
+*/
+
 type AbortAction string
 
 //goland:noinspection GoUnusedConst
 const (
-	AbortActionUnspecific  AbortAction = ""
-	AbortActionIgnore      AbortAction = "ignore"
-	AbortActionRetry       AbortAction = "retry"
+	// AbortActionUnspecific 空值
+	AbortActionUnspecific AbortAction = ""
+	// AbortActionIgnore 忽略此次操作
+	AbortActionIgnore AbortAction = "ignore"
+	// AbortActionRetry 让用户重新输入
+	AbortActionRetry AbortAction = "retry"
+	// AbortActionReturnError 返回错误，一般是 AbortError 或 ExitError
 	AbortActionReturnError AbortAction = "return_error"
-	AbortActionReturnNone  AbortAction = "return_none"
+	// AbortActionReturnNone 返回空
+	AbortActionReturnNone AbortAction = "return_none"
 )
 
+// AbortError 用户中断，一般是 Ctrl-C 触发
+// ExitError 用户停止，一般是 Ctrl-D 触发
 var AbortError = errors.New("user abort")
 var ExitError = errors.New("user exit")
 
@@ -30,6 +41,8 @@ func panicIfError(err error) {
 	}
 }
 
+// ctrlKey 返回与 Ctrl 一起按下的键
+//
 //goland:noinspection GoUnusedFunction
 func ctrlKey(k rune) rune {
 	return k & 0x1f
@@ -38,19 +51,30 @@ func ctrlKey(k rune) rune {
 type PollEvent string
 
 const (
+	// PollEventInput 输入事件，用户按下键盘输入
+	// PollEventRedraw 重画事件，重画当前输入
+	// PollEventTimeout 超时事件，一段时间内没有其他事件触发
 	PollEventInput   PollEvent = "input"
 	PollEventRedraw  PollEvent = "redraw"
 	PollEventTimeout PollEvent = "timeout"
 )
 
+// CommandLineOption 命令行选项
 type CommandLineOption struct {
-	Schema        Schema
-	Handler       EventHandler
-	History       History
-	CodeFactory   CodeFactory
+	// Schema token 样式（主要是颜色、加粗等）
+	Schema Schema
+	// Handler 事件处理器
+	Handler EventHandler
+	// History 输入历史存储
+	History History
+	// CodeFactory Code 类工厂方法
+	CodeFactory CodeFactory
+	// PromptFactory Prompt 类工厂方法
 	PromptFactory PromptFactory
 
-	OnExit  AbortAction
+	// OnExit 用户停止时动作（Ctrl-D）
+	OnExit AbortAction
+	// OnAbort 用户中断时动作（Ctrl-C）
 	OnAbort AbortAction
 
 	// 自动缩进，如果开启，新行的缩进会与上一行保持一致
@@ -59,6 +83,7 @@ type CommandLineOption struct {
 	EnableDebug bool
 }
 
+// defaultCommandLineOption 默认命令行配置
 var defaultCommandLineOption = &CommandLineOption{
 	Schema:        defaultSchema,
 	Handler:       newBaseHandler(),
@@ -71,6 +96,7 @@ var defaultCommandLineOption = &CommandLineOption{
 	EnableDebug:   false,
 }
 
+// copy 复制命令行配置，返回新的配置对象
 func (cp *CommandLineOption) copy() *CommandLineOption {
 	return &CommandLineOption{
 		Schema:        cp.Schema,
@@ -85,6 +111,7 @@ func (cp *CommandLineOption) copy() *CommandLineOption {
 	}
 }
 
+// update 更新配置
 func (cp *CommandLineOption) update(other *CommandLineOption) {
 	if other.Schema != nil {
 		cp.Schema = other.Schema
@@ -112,29 +139,33 @@ func (cp *CommandLineOption) update(other *CommandLineOption) {
 }
 
 type CommandLine struct {
+	// 标准输入和输出的缓冲读写
 	reader *bufio.Reader
 	writer *bufio.Writer
 	//    配置选项
 	option *CommandLineOption
 	//    下面几个都用用于并发的情况
-	//    等待输入超时时间
-	inputTimeout time.Duration
+	//    轮询超时时间
+	pollTimeout time.Duration
 	//    读取错误
 	readError error
-	//     重画和读取 channel
+	//    重画和读取 channel
 	redrawChannel chan rune
-	readChannel   chan rune
+	//    传输读取的 rune
+	readChannel chan rune
 	//    是否正在读取用户输入
 	isReadingInput bool
-	//   下面几个对应用户的特殊操作：退出、丢弃、确定
+	//    下面几个对应用户的特殊操作：退出、丢弃、确定
+	//    当操作发生时，对应的 flag 会设置为 true
 	exitFlag   bool
 	abortFlag  bool
 	acceptFlag bool
-	//    命令行当前使用的 Line 和 Render 对象
+	//    命令行当前使用的 Line 和 Renderer 对象
 	line     *Line
 	renderer *Renderer
 }
 
+// NewCommandLine 传入配置，新建命令行对象
 func NewCommandLine(option *CommandLineOption) (*CommandLine, error) {
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return nil, fmt.Errorf("not in a terminal")
@@ -143,6 +174,7 @@ func NewCommandLine(option *CommandLineOption) (*CommandLine, error) {
 		return nil, fmt.Errorf("not in a terminal")
 	}
 
+	//     组合传入配置和默认配置
 	actualOption := defaultCommandLineOption.copy()
 	if option != nil {
 		actualOption.update(option)
@@ -162,9 +194,11 @@ func NewCommandLine(option *CommandLineOption) (*CommandLine, error) {
 	return c, nil
 }
 
+// setup 命令行初始化
 func (c *CommandLine) setup() {
 	c.reset()
-	c.inputTimeout = 100 * time.Millisecond
+	c.pollTimeout = 100 * time.Millisecond
+	//    开启 debug log
 	if c.option.EnableDebug {
 		enableDebugLog()
 	} else {
@@ -175,6 +209,8 @@ func (c *CommandLine) setup() {
 		for {
 			r, _, err := c.reader.ReadRune()
 			if err != nil {
+				//    发生错误时，停止读取（如果调用方忽略 ReadInput 返回的错误，是否应该继续读取？）
+				//    这个错误会由 ReadInput 判断并返回给调用方
 				c.readError = err
 				c.readChannel <- 0
 				break
@@ -184,6 +220,7 @@ func (c *CommandLine) setup() {
 	}()
 }
 
+// reset 重置 flag 和错误
 func (c *CommandLine) reset() {
 	c.exitFlag = false
 	c.abortFlag = false
@@ -191,6 +228,7 @@ func (c *CommandLine) reset() {
 	c.readError = nil
 }
 
+// Close 关闭命令行，现在这个方法啥也没做
 func (c *CommandLine) Close() {
 
 }
@@ -207,6 +245,7 @@ func (c *CommandLine) RunInExecutor(callback func()) {
 	go callback()
 }
 
+// pollEvent 轮询事件
 func (c *CommandLine) pollEvent() ([]rune, PollEvent) {
 	select {
 	case r := <-c.readChannel:
@@ -230,11 +269,12 @@ func (c *CommandLine) pollEvent() ([]rune, PollEvent) {
 			<-c.redrawChannel
 		}
 		return nil, PollEventRedraw
-	case <-time.After(c.inputTimeout):
+	case <-time.After(c.pollTimeout):
 		return nil, PollEventTimeout
 	}
 }
 
+// ReadInput 读取用户输入
 func (c *CommandLine) ReadInput() (string, error) {
 	if c.isReadingInput {
 		return "", fmt.Errorf("already reading input")
@@ -260,7 +300,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 		renderer.reset()
 		c.reset()
 	}
-
+	//    重置各个对象状态
 	resetFunc()
 
 	//    开启 terminal raw mode
@@ -271,6 +311,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	//    ReadInput 调用返回后，控制流程就到了用户，我们需要恢复终端的初始状态
 	defer func() {
 		err := term.Restore(int(os.Stdin.Fd()), oldState)
 		if err != nil {
@@ -280,7 +321,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 
 	var inputText string
 	for {
-		//    读取用户输入
+		//    轮询事件
 		runes, pollEvent := c.pollEvent()
 		switch pollEvent {
 		case PollEventInput:
@@ -300,7 +341,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 
 		//    处理特别的输入事件结果
 		if c.exitFlag {
-			//    一般是用户按了 Ctrl-D
+			//    一般是用户按了 Ctrl-D ，代表退出
 			switch c.option.OnExit {
 			case AbortActionReturnError:
 				renderer.render(line.GetRenderContext(), true, false)
@@ -315,7 +356,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 			}
 		}
 		if c.abortFlag {
-			//    一般是用户按了 Ctrl-C
+			//    一般是用户按了 Ctrl-C ，代表中断
 			switch c.option.OnAbort {
 			case AbortActionReturnError:
 				renderer.render(line.GetRenderContext(), true, false)
@@ -330,7 +371,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 			}
 		}
 		if c.acceptFlag {
-			//    一般是用户按了 Enter
+			//    一般是用户按了 Enter ，代表完成本次输入
 			renderer.render(line.GetRenderContext(), false, true)
 			inputText = line.text()
 			break
@@ -397,26 +438,32 @@ func (c *CommandLine) flush() {
 	panicIfError(err)
 }
 
+// SetOnAbort 设置用户中断时的动作
 func (c *CommandLine) SetOnAbort(action AbortAction) {
 	c.option.OnAbort = action
 }
 
+// SetOnExit 设置用户停止时的动作
 func (c *CommandLine) SetOnExit(action AbortAction) {
 	c.option.OnExit = action
 }
 
-func (c *CommandLine) SetExit() {
+// SetExitFlag 设置停止标志
+func (c *CommandLine) SetExitFlag() {
 	c.exitFlag = true
 }
 
-func (c *CommandLine) SetAbort() {
+// SetAbortFlag 设置中断标志
+func (c *CommandLine) SetAbortFlag() {
 	c.abortFlag = true
 }
 
-func (c *CommandLine) SetAccept() {
+// SetAcceptFlag 设置（本次输入）完成标志
+func (c *CommandLine) SetAcceptFlag() {
 	c.acceptFlag = true
 }
 
+// IsReadingInput 是否正在读取输入
 func (c *CommandLine) IsReadingInput() bool {
 	return c.isReadingInput
 }

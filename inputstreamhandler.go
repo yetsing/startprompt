@@ -179,7 +179,7 @@ func (b *BaseHandler) CtrlB(_ []rune) {
 }
 func (b *BaseHandler) CtrlC(_ []rune) {
 	b.line.ToNormalMode()
-	b.cli.SetAbort()
+	b.cli.SetAbortFlag()
 }
 func (b *BaseHandler) CtrlD(_ []rune) {
 	line := b.line
@@ -188,7 +188,7 @@ func (b *BaseHandler) CtrlD(_ []rune) {
 	if line.HasText() {
 		line.DeleteCharacterAfterCursor(1)
 	} else {
-		b.cli.SetExit()
+		b.cli.SetExitFlag()
 	}
 }
 func (b *BaseHandler) CtrlE(_ []rune) {
@@ -318,7 +318,7 @@ func (b *BaseHandler) InsertChar(data []rune) {
 func (b *BaseHandler) enter() {
 	b.line.AutoEnter()
 	if b.line.IsAccept() {
-		b.cli.SetAccept()
+		b.cli.SetAcceptFlag()
 	}
 }
 

@@ -4,12 +4,16 @@ import (
 	"github.com/yetsing/startprompt/token"
 )
 
+/*
+分词和补全相关的接口和结构体
+*/
+
 type Completion struct {
-	// 展示给用户看的
+	// Display 展示给用户看的
 	Display string
-	// 加到用户输入后面的
+	// Suffix 加到用户输入后面的
 	Suffix string
-	// 补全的元信息，比如补全是变量或者方法之类的
+	// DisplayMeta 补全的元信息，比如补全是变量或者方法之类的
 	DisplayMeta string
 }
 
@@ -25,12 +29,13 @@ type Code interface {
 	GetCompletions() []*Completion
 	// ContinueInput 用户按下 Enter 键时调用，
 	// 返回 true 时，会插入换行符
-	// 返回 false 时，表示用户本次输入完成， CommandLine.ReadInput 则会返回用户输入
+	// 返回 false 时，表示用户本次输入完成， CommandLine.ReadInput(TCommandLine.ReadInput) 则会返回用户输入
 	ContinueInput() bool
 	// CompleteAfterInsertText 返回 true 表示每次插入文本我们都获取一次补全
 	CompleteAfterInsertText() bool
 }
 
+// _BaseCode Code 的默认实现
 type _BaseCode struct {
 	document *Document
 }
