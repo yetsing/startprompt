@@ -8,9 +8,13 @@ import (
 	"unicode/utf8"
 )
 
+// _DocumentCache Document 的一些解析信息缓存
 type _DocumentCache struct {
-	lines       []string
+	//    每一行的数据
+	lines []string
+	//    每一行的长度
 	lineLengths []int
+	//    每一行开始的索引
 	lineIndexes []int
 }
 
@@ -25,6 +29,7 @@ type Document struct {
 	cache *_DocumentCache
 }
 
+// NewDocument 新建 Document 对象
 func NewDocument(text string, cursorPosition int) *Document {
 	return &Document{
 		text:           text,
@@ -34,34 +39,42 @@ func NewDocument(text string, cursorPosition int) *Document {
 	}
 }
 
+// String 返回字符串表示
 func (d *Document) String() string {
 	return fmt.Sprintf("Document(%q, %d)", d.text, d.cursorPosition)
 }
 
+// Equal 判断两个 Document 是否相等
 func (d *Document) Equal(other *Document) bool {
 	return d.text == other.text && d.cursorPosition == other.cursorPosition
 }
 
+// Text 返回 Document 的文本
 func (d *Document) Text() string {
 	return d.text
 }
 
+// CursorPosition 返回 Document 的光标位置
 func (d *Document) CursorPosition() int {
 	return d.cursorPosition
 }
 
+// CurrentChar 返回光标处字符
 func (d *Document) CurrentChar() string {
 	return d.getCharRelativeToCursor(0)
 }
 
+// CharBeforeCursor 返回光标前（左）字符
 func (d *Document) CharBeforeCursor() string {
 	return d.getCharRelativeToCursor(-1)
 }
 
+// TextBeforeCursor 返回光标前（左）文本
 func (d *Document) TextBeforeCursor() string {
 	return string(d.runes[:d.cursorPosition])
 }
 
+// TextAfterCursor 返回光标后（右）文本
 func (d *Document) TextAfterCursor() string {
 	return string(d.runes[d.cursorPosition:])
 }
@@ -88,11 +101,12 @@ func (d *Document) CurrentLineAfterCursor() string {
 	return text[:index]
 }
 
-// 返回当前行到最后一行
+// linesFromCurrent 返回当前行到最后一行
 func (d *Document) linesFromCurrent() []string {
 	return d.lines()[d.CursorPositionRow():]
 }
 
+// LineCount 返回行数
 func (d *Document) LineCount() int {
 	return len(d.lines())
 }
@@ -115,7 +129,7 @@ func (d *Document) LeadingWhitespaceInCurrentLine() string {
 	return currentLine
 }
 
-// 获取相对光标位置的字符
+// getCharRelativeToCursor 获取相对光标位置的字符，offset < 0 代表光标左边字符
 func (d *Document) getCharRelativeToCursor(offset int) string {
 	index := d.cursorPosition + offset
 	if index < 0 || index >= len(d.runes) {
@@ -146,7 +160,7 @@ func (d *Document) CursorPositionCol() int {
 	return d.cursorPosition - lineStartIndex
 }
 
-// index 表示文本中的索引，返回所在行号和行首索引
+// findLineStartIndex index 表示文本中的索引，返回所在行号和行首索引
 func (d *Document) findLineStartIndex(index int) (int, int) {
 	indexes := d.lineStartIndexes()
 	lineno := sort.Search(len(indexes), func(i int) bool {
@@ -157,7 +171,7 @@ func (d *Document) findLineStartIndex(index int) (int, int) {
 	return lineno, indexes[lineno]
 }
 
-// 将文本索引 index 转化成行号和列号
+// translateIndexToRowCol 将文本索引 index 转化成行号和列号
 func (d *Document) translateIndexToRowCol(index int) (int, int) {
 	row, lineStartIndex := d.findLineStartIndex(index)
 	col := index - lineStartIndex
@@ -237,12 +251,12 @@ func (d *Document) CursorDownPosition() int {
 	return -1
 }
 
-// 光标是否在文本的最后面（最后一行的行尾）
+// isCursorAtTheEnd 光标是否在文本的最后面（最后一行的行尾）
 func (d *Document) isCursorAtTheEnd() bool {
 	return d.cursorPosition == len(d.runes)
 }
 
-// 光标是否在行尾
+// isCursorAtTheEndOfLine 光标是否在行尾
 func (d *Document) isCursorAtTheEndOfLine() bool {
 	return d.CurrentChar() == "\n" || d.CurrentChar() == ""
 }
@@ -265,7 +279,7 @@ func (d *Document) GetWordBeforeCursor() string {
 	}
 }
 
-// 找到光标前第一个单词开头的位置记为 S ，返回 S 与光标的相对位置
+// findStartOfPreviousWord 找到光标前第一个单词开头的位置记为 S ，返回 S 与光标的相对位置
 // 找不到返回 0
 func (d *Document) findStartOfPreviousWord() int {
 	text := d.TextBeforeCursor()
@@ -291,7 +305,7 @@ func (d *Document) findStartOfPreviousWord() int {
 	return -step
 }
 
-// 找到光标后第一个单词开头的位置记为 S ，返回 S 与光标的相对位置
+// findNextWordBeginning 找到光标后第一个单词开头的位置记为 S ，返回 S 与光标的相对位置
 // 找不到返回 0
 func (d *Document) findNextWordBeginning() int {
 	text := d.TextAfterCursor()
@@ -316,7 +330,7 @@ func (d *Document) findNextWordBeginning() int {
 	return 0
 }
 
-// 找到光标后第一个单词结尾的位置记为 S ，返回 S 与光标的相对位置
+// findNextWordEnding 找到光标后第一个单词结尾的位置记为 S ，返回 S 与光标的相对位置
 // 找不到返回 0
 // includeCurrentPosition 是否包括光标处字符，之所以有这个选项，说明如下
 // 对于 vim 来说，按 e 可以移动到单词末尾，实际上光标是在单词最后一个字符的左边

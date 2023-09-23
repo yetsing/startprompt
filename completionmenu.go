@@ -5,8 +5,11 @@ import (
 	"github.com/yetsing/startprompt/token"
 )
 
+// cCompletionMenuInfo 补全菜单信息（用于判断鼠标点击）
 type cCompletionMenuInfo struct {
-	area      area
+	//    显示区域
+	area area
+	//    补全项的开始和结束索引
 	sliceFrom int
 	sliceTo   int
 }
@@ -43,7 +46,7 @@ func newCompletionMenu(screen *Screen, completeState *cCompletionState, maxHeigh
 	}
 }
 
-// 返回光标的位置坐标
+// getOrigin 返回光标的位置坐标
 func (c *cCompletionMenu) getOrigin() Coordinate {
 	return c.screen.getCoordinate(
 		c.completeState.originalDocument.CursorPositionRow(),
@@ -68,6 +71,7 @@ func (c *cCompletionMenu) getDrawCoordinate(itemWidth int) Coordinate {
 	}
 }
 
+// showMeta 是否展示元信息
 func (c *cCompletionMenu) showMeta() bool {
 	for _, completion := range c.completeState.currentCompletions {
 		if len(completion.DisplayMeta) > 0 {
@@ -106,7 +110,7 @@ func (c *cCompletionMenu) getMenuMetaWidth() int {
 	return minInt(maxDisplayMeta, menuMetaWidth)
 }
 
-// 将菜单写入 screen 里面
+// write 将菜单写入 screen 里面
 func (c *cCompletionMenu) write() {
 	completions := c.completeState.currentCompletions
 	index := c.completeState.completeIndex
@@ -181,6 +185,7 @@ func (c *cCompletionMenu) getMenuItemMetaToken(completion *Completion, isCurrent
 	return token.NewToken(ttype, " "+ljustWidth(completion.DisplayMeta, width))
 }
 
+// getInfo 获取补全信息
 func (c *cCompletionMenu) getInfo() *cCompletionMenuInfo {
 	return c.info
 }
