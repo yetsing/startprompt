@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/mattn/go-runewidth"
+
 	"github.com/yetsing/startprompt/terminalcode"
 	"github.com/yetsing/startprompt/terminalcolor"
 	"github.com/yetsing/startprompt/token"
@@ -45,8 +46,8 @@ var displayMapping = map[string]string{
 }
 
 type Char struct {
+	style  *terminalcolor.ColorStyle
 	char   string
-	style  terminalcolor.Style
 	cwidth int
 }
 
@@ -69,7 +70,14 @@ func (c *Char) width() int {
 	return c.cwidth
 }
 
-func newChar(r rune, style terminalcolor.Style) *Char {
+func (c *Char) reverseStyle() {
+	if c.style == nil {
+		c.style = terminalcolor.NewDefaultColorStyle()
+	}
+	c.style = c.style.DoReverse(true)
+}
+
+func newChar(r rune, style *terminalcolor.ColorStyle) *Char {
 	ch := string(r)
 	if _, found := displayMapping[ch]; found {
 		ch = displayMapping[ch]
@@ -79,44 +87,6 @@ func newChar(r rune, style terminalcolor.Style) *Char {
 		style:  style,
 		cwidth: -1,
 	}
-}
-
-type Coordinate struct {
-	X int
-	Y int
-}
-
-func (c *Coordinate) equal(other *Coordinate) bool {
-	return c.X == other.X && c.Y == other.Y
-}
-
-// gte 大于等于
-func (c *Coordinate) gt(other *Coordinate) bool {
-	if c.Y > other.Y {
-		return true
-	} else if c.Y == other.Y {
-		return c.X > other.X
-	} else {
-		return false
-	}
-}
-
-func (c *Coordinate) add(x int, y int) {
-	c.X += x
-	c.Y += y
-}
-
-func (c *Coordinate) addX(n int) {
-	c.X += n
-}
-
-func (c *Coordinate) addY(n int) {
-	c.Y += n
-}
-
-type Location struct {
-	Row int
-	Col int
 }
 
 func NewScreen(schema Schema, size _Size) *Screen {
@@ -156,6 +126,22 @@ type Screen struct {
 	locationMap map[Coordinate]Location
 
 	secondLinePrefixFunc func() []token.Token
+}
+
+func (s *Screen) ReverseStyle(start Coordinate, end Coordinate) {
+	current := start
+	for end.gt(&current) {
+		ch := s.getAtPos(current.X, current.Y)
+		if ch == nil {
+			ch = newChar(' ', nil)
+		}
+		ch.reverseStyle()
+		s.writeAtPos(current.X, current.Y, ch)
+		current.addX(1)
+		if current.X >= s.size.width {
+			current = Coordinate{0, current.Y + 1}
+		}
+	}
 }
 
 func (s *Screen) Width() int {
@@ -255,7 +241,7 @@ func (s *Screen) WriteTokens(tokens []token.Token, saveInputPos bool) {
 	}
 }
 
-func (s *Screen) WriteRune(r rune, style terminalcolor.Style, saveInputPos bool) {
+func (s *Screen) WriteRune(r rune, style *terminalcolor.ColorStyle, saveInputPos bool) {
 	char := newChar(r, style)
 	charWidth := char.width()
 
@@ -314,6 +300,16 @@ func (s *Screen) writeAtPos(x int, y int, char *Char) {
 	}
 }
 
+func (s *Screen) getAtPos(x int, y int) *Char {
+	if lineData, found := s.buffer[y]; found {
+		if ch, found := lineData[x]; found {
+			return ch
+		}
+		return nil
+	}
+	return nil
+}
+
 // saveInputPos 保存行列和 xy 坐标的双向映射
 func (s *Screen) saveInputPos() {
 	s.coordinateMap[Location{s.inputRow, s.inputCol}] = Coordinate{s.x, s.y}
@@ -327,6 +323,10 @@ func (s *Screen) setSecondLinePrefix(secondLinePrefixFunc func() []token.Token) 
 // getCoordinate 根据行列得到 xy 坐标
 func (s *Screen) getCoordinate(row int, col int) Coordinate {
 	return s.coordinateMap[Location{row, col}]
+}
+
+func (s *Screen) getCoordinateByLocation(loc Location) Coordinate {
+	return s.coordinateMap[loc]
 }
 
 func (s *Screen) getLocationMap() map[Coordinate]Location {

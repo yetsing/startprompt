@@ -162,6 +162,9 @@ func (d *Document) CursorPositionCol() int {
 
 // findLineStartIndex index 表示文本中的索引，返回所在行号和行首索引
 func (d *Document) findLineStartIndex(index int) (int, int) {
+	if index < 0 {
+		panic(fmt.Sprintf("invalid index %d", index))
+	}
 	indexes := d.lineStartIndexes()
 	lineno := sort.Search(len(indexes), func(i int) bool {
 		return indexes[i] > index

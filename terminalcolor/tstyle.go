@@ -280,10 +280,13 @@ var tcolorMapping = map[Color]tcell.Color{
 
 func ToTcellStyle(style *ColorStyle) tcell.Style {
 	tstyle := tcell.Style{}
-	tstyle = tstyle.Foreground(tcolorMapping[style.fg]).
-		Background(tcolorMapping[style.bg]).
-		Bold(style.bold).
-		Underline(style.underline).
-		Italic(style.italic)
+	if style != nil {
+		tstyle = tstyle.Foreground(tcolorMapping[style.fg]).
+			Background(tcolorMapping[style.bg]).
+			Bold(style.bold).
+			Underline(style.underline).
+			Italic(style.italic).
+			Reverse(style.reverse)
+	}
 	return tstyle
 }

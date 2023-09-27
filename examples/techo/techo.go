@@ -33,7 +33,7 @@ func main() {
 		}
 		c.Println("echo:", line)
 		//    模拟长时间执行
-		//time.Sleep(10 * time.Second)
+		// time.Sleep(10 * time.Second)
 	}
 	time.Sleep(1 * time.Second)
 }

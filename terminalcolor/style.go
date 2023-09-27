@@ -5,12 +5,7 @@ import (
 	"strings"
 )
 
-type Style interface {
-	ColorEscape() string
-	ResetEscape() string
-}
-
-func ApplyStyle(style Style, text string, reset bool) string {
+func ApplyStyle(style *ColorStyle, text string, reset bool) string {
 	m := make([]string, 3)
 	m[0] = style.ColorEscape()
 	m[1] = text
@@ -37,6 +32,11 @@ type ColorStyle struct {
 	bold      bool
 	underline bool
 	italic    bool
+	reverse   bool
+}
+
+func NewDefaultColorStyle() *ColorStyle {
+	return NewColorStyle(ColorDefault, ColorDefault)
 }
 
 func NewFgColorStyleHex(fg string) *ColorStyle {
@@ -65,8 +65,22 @@ func NewColorStyleGeneric(fg, bg Color, bold, underline, italic bool) *ColorStyl
 	}
 }
 
+func (c *ColorStyle) DoReverse(on bool) *ColorStyle {
+	return &ColorStyle{
+		fg:        c.fg,
+		bg:        c.bg,
+		bold:      c.bold,
+		underline: c.underline,
+		italic:    c.italic,
+		reverse:   on,
+	}
+}
+
 func (c *ColorStyle) ColorEscape() string {
 	var attrs []string
+	if c.reverse {
+		attrs = append(attrs, "7")
+	}
 	if c.fg != ColorDefault {
 		if c.fg >= Color256Start {
 			attrs = append(attrs, "38", "5", strconv.Itoa(int(c.fg-Color256Start)))
@@ -102,7 +116,7 @@ func (c *ColorStyle) ResetEscape() string {
 	if c.bg != ColorDefault {
 		attrs = append(attrs, "49")
 	}
-	if c.bold || c.underline || c.italic {
+	if c.bold || c.underline || c.italic || c.reverse {
 		attrs = append(attrs, "00")
 	}
 	return escapeAttrs(attrs)

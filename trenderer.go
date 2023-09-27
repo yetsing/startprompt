@@ -2,6 +2,7 @@ package startprompt
 
 import (
 	"github.com/gdamore/tcell/v2"
+
 	"github.com/yetsing/startprompt/terminalcolor"
 	"github.com/yetsing/startprompt/token"
 )
@@ -101,6 +102,14 @@ func (tr *TRenderer) updateWithScreen(screen *Screen) {
 func (tr *TRenderer) render(renderContext *RenderContext, abort bool, accept bool) {
 	//    写入屏幕输出
 	screen := tr.getNewScreen(renderContext)
+	if !(accept || abort) {
+		//    高亮对应区域
+		for _, sec := range renderContext.highlights {
+			start := screen.getCoordinateByLocation(sec.start)
+			end := screen.getCoordinateByLocation(sec.end)
+			screen.ReverseStyle(start, end)
+		}
+	}
 	tr.updateWithScreen(screen)
 
 	if renderContext.cancelSelection {
@@ -190,10 +199,7 @@ func (tr *TRenderer) Show() {
 		lineData, found := tr.scrollTextView.getLineAt(y)
 		if found {
 			for _, datum := range lineData {
-				tstyle := tcell.StyleDefault
-				if colorStyle, ok := datum.style.(*terminalcolor.ColorStyle); ok {
-					tstyle = terminalcolor.ToTcellStyle(colorStyle)
-				}
+				tstyle := terminalcolor.ToTcellStyle(datum.style)
 				if tr.scrollTextView.inSelection(Coordinate{datum.x, y}) {
 					tstyle = tstyle.Reverse(true)
 				}
@@ -209,7 +215,6 @@ func (tr *TRenderer) Show() {
 }
 
 func (tr *TRenderer) reset() {
-
 }
 
 // GetClosetLocation 返回跟坐标最接近的行列，返回的布尔值表示是否找到

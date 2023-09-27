@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/mattn/go-runewidth"
+
 	"github.com/yetsing/startprompt/terminalcode"
 	"github.com/yetsing/startprompt/token"
 )
@@ -84,8 +85,16 @@ func (r *Renderer) renderToStr(renderContext *RenderContext, abort bool, accept 
 	//    删除当前行到屏幕下方
 	buf.WriteString(terminalcode.EraseDown)
 
-	//    生成屏幕输出
+	//    写入屏幕输出
 	screen := r.getNewScreen(renderContext)
+	if !(accept || abort) {
+		//    高亮对应区域
+		for _, sec := range renderContext.highlights {
+			start := screen.getCoordinateByLocation(sec.start)
+			end := screen.getCoordinateByLocation(sec.end)
+			screen.ReverseStyle(start, end)
+		}
+	}
 	o, lastCoordinate := screen.Output(offsetY)
 	buf.WriteString(o)
 
@@ -211,5 +220,4 @@ func (r *Renderer) flush() {
 }
 
 func (r *Renderer) reset() {
-
 }

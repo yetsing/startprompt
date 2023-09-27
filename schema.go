@@ -5,9 +5,9 @@ import (
 	"github.com/yetsing/startprompt/token"
 )
 
-type Schema map[token.TokenType]terminalcolor.Style
+type Schema map[token.TokenType]*terminalcolor.ColorStyle
 
-func (s Schema) StyleForToken(tokenType token.TokenType) terminalcolor.Style {
+func (s Schema) StyleForToken(tokenType token.TokenType) *terminalcolor.ColorStyle {
 	if v, found := s[tokenType]; found {
 		return v
 	}
@@ -20,11 +20,11 @@ func (s Schema) StyleForToken(tokenType token.TokenType) terminalcolor.Style {
 	return nil
 }
 
-var defaultSchema = map[token.TokenType]terminalcolor.Style{
+var defaultSchema = map[token.TokenType]*terminalcolor.ColorStyle{
 	token.Keyword:  terminalcolor.NewFgColorStyleHex("#ee00ee"),
 	token.Operator: terminalcolor.NewFgColorStyleHex("#aa6666"),
 	token.Number:   terminalcolor.NewFgColorStyleHex("#2aacb8"),
-	//token.Name:     terminalcolor.NewFgColorStyleHex("#008800"),
+	// token.Name:     terminalcolor.NewFgColorStyleHex("#008800"),
 	token.String: terminalcolor.NewFgColorStyleHex("#6aab73"),
 
 	token.Error:   terminalcolor.NewColorStyleHex("#000000", "#ff8888"),

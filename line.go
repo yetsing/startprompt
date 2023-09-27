@@ -18,7 +18,10 @@ type cCompletionState struct {
 	completeIndex int
 }
 
-func newCompletionState(originalDocument *Document, currentCompletions []*Completion) *cCompletionState {
+func newCompletionState(
+	originalDocument *Document,
+	currentCompletions []*Completion,
+) *cCompletionState {
 	return &cCompletionState{
 		originalDocument:   originalDocument,
 		currentCompletions: currentCompletions,
@@ -284,7 +287,9 @@ func (l *Line) CursorToEndOfLine() {
 // afterWhitespace 为 true ，则是将光标移动到当前行第一个非空字符处
 func (l *Line) CursorToStartOfLine(afterWhitespace bool) {
 	document := l.Document()
-	l.SetCursorPosition(l.cursorPosition - utf8.RuneCountInString(document.CurrentLineBeforeCursor()))
+	l.SetCursorPosition(
+		l.cursorPosition - utf8.RuneCountInString(document.CurrentLineBeforeCursor()),
+	)
 
 	if afterWhitespace {
 		ws := document.LeadingWhitespaceInCurrentLine()
@@ -382,6 +387,13 @@ func (l *Line) SwapCharactersBeforeCursor() {
 
 // GotoMatchingBracket 跳转到匹配 [ ( { < 的括号
 func (l *Line) GotoMatchingBracket() {
+	pos := l.getMatchingBracket()
+	if pos >= 0 {
+		l.SetCursorPosition(pos)
+	}
+}
+
+func (l *Line) getMatchingBracket() int {
 	brackets := []struct {
 		left  string
 		right string
@@ -406,8 +418,9 @@ func (l *Line) GotoMatchingBracket() {
 				}
 				if stack == 0 {
 					// 是从 1 开始遍历的，所以这里需要加 1
-					l.SetCursorPosition(l.cursorPosition + step + 1)
-					break
+					// l.SetCursorPosition(l.cursorPosition + step + 1)
+					// break
+					return l.cursorPosition + step + 1
 				}
 				step++
 			}
@@ -425,13 +438,15 @@ func (l *Line) GotoMatchingBracket() {
 				if stack == 0 {
 					// 比如这种情况 () 光标在括号中间
 					// stack == 0 的时候， step = 0 ，需要向左移动一格，所以还需要减一
-					l.SetCursorPosition(l.cursorPosition - step - 1)
-					break
+					// l.SetCursorPosition(l.cursorPosition - step - 1)
+					// break
+					return l.cursorPosition - step - 1
 				}
 				step++
 			}
 		}
 	}
+	return -1
 }
 
 func (l *Line) CreateCode() Code {
@@ -476,7 +491,6 @@ func (l *Line) CompleteNext(count int) {
 
 // CompletePrevious 选择上面第 count 个补全
 func (l *Line) CompletePrevious(count int) {
-
 	if !l.mode.Is(linemode.Complete) {
 		l.StartComplete(false)
 	}
@@ -555,10 +569,25 @@ func (l *Line) GetRenderContext() *RenderContext {
 		completeState = nil
 	}
 
+	var highlights []section
+	document := l.Document()
+	matchIndex := l.getMatchingBracket()
+	if matchIndex >= 0 {
+		r, c := document.translateIndexToRowCol(matchIndex)
+		start := Location{r, c}
+		end := Location{document.CursorPositionRow(), document.CursorPositionCol() + 1}
+		//    交换开始和结束位置
+		if matchIndex > l.cursorPosition {
+			start, end = end, start
+		}
+		highlights = append(highlights, section{start, end})
+	}
+
 	renderCtx := newRenderContext(
 		code,
 		completeState,
-		l.Document(),
+		document,
+		highlights,
 		l.cancelSelection,
 	)
 	l.cancelSelection = false
@@ -671,7 +700,7 @@ func (l *Line) InsertText(data []rune, moveCursor bool) {
 
 func (l *Line) insertText(data []rune, moveCursor bool) {
 	result := insertRunes(l.buffer, l.cursorPosition, data)
-	//result := concatRunes(l.buffer[:l.cursorPosition], data, l.buffer[l.cursorPosition:])
+	// result := concatRunes(l.buffer[:l.cursorPosition], data, l.buffer[l.cursorPosition:])
 	l.setText(result)
 	if moveCursor {
 		l.SetCursorPosition(l.cursorPosition + len(data))
@@ -742,7 +771,6 @@ func (l *Line) ToMode(modes ...linemode.LineMode) {
 	}
 	// todo something
 	if l.mode.Is(linemode.IncrementalSearch) {
-
 	} else if l.mode.Is(linemode.Complete) {
 		l.AcceptComplete()
 	}
