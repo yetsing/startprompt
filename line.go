@@ -575,11 +575,12 @@ func (l *Line) GetRenderContext() *RenderContext {
 	if matchIndex >= 0 {
 		r, c := document.translateIndexToRowCol(matchIndex)
 		start := Location{r, c}
-		end := Location{document.CursorPositionRow(), document.CursorPositionCol() + 1}
+		end := Location{document.CursorPositionRow(), document.CursorPositionCol()}
 		//    交换开始和结束位置
 		if matchIndex > l.cursorPosition {
 			start, end = end, start
 		}
+		end = Location{end.Row, end.Col + 1}
 		highlights = append(highlights, section{start, end})
 	}
 
