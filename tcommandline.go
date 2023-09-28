@@ -122,6 +122,7 @@ func NewTCommandLine(option *CommandLineOption) (*TCommandLine, error) {
 		renderer: newTRenderer(s, actualOption.Schema, actualOption.PromptFactory),
 	}
 	c.setup()
+	DebugLog("start tcommandline")
 	return c, nil
 }
 
@@ -172,6 +173,7 @@ func (tc *TCommandLine) Close() {
 		DebugLog("panic: %v\n%s", maybePanic, string(debug.Stack()))
 		panic(maybePanic)
 	}
+	DebugLog("close tcommandline")
 }
 
 // RequestRedraw 请求重绘（ goroutine 安全）
@@ -192,11 +194,13 @@ func (tc *TCommandLine) ReadInput() (string, error) {
 		return "", fmt.Errorf("already reading input")
 	}
 	tc.isReadingInput = true
+	DebugLog("reading input")
 
 	tc.outputChannel <- outputStruct{"", true}
 	in := <-tc.inputChannel
 
 	tc.isReadingInput = false
+	DebugLog("return input: <%s>, err: %v", in.text, in.err)
 	return in.text, in.err
 }
 
@@ -299,6 +303,7 @@ func (tc *TCommandLine) runLoop() {
 
 		//    处理特别的输入事件结果
 		if tc.exitFlag {
+			DebugLog("handle exit flag")
 			//    一般是用户按了 Ctrl-D
 			switch tc.option.OnExit {
 			case AbortActionReturnError:
@@ -316,6 +321,7 @@ func (tc *TCommandLine) runLoop() {
 			}
 		}
 		if tc.abortFlag {
+			DebugLog("handle abort flag")
 			//    一般是用户按了 Ctrl-C
 			switch tc.option.OnAbort {
 			case AbortActionReturnError:
@@ -333,11 +339,11 @@ func (tc *TCommandLine) runLoop() {
 			}
 		}
 		if tc.acceptFlag {
+			DebugLog("handle accept flag")
 			//    一般是用户按了 Enter
 			//    返回用户输入的文本内容
 			renderer.render(line.GetRenderContext(), false, true)
 			inputText := line.text()
-			DebugLog("return input: <%s>", inputText)
 			tc.sendInput(inputText, nil)
 			break
 		}

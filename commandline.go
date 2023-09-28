@@ -191,6 +191,7 @@ func NewCommandLine(option *CommandLineOption) (*CommandLine, error) {
 		readChannel:   make(chan rune, 1024),
 	}
 	c.setup()
+	DebugLog("start commandline")
 	return c, nil
 }
 
@@ -230,7 +231,7 @@ func (c *CommandLine) reset() {
 
 // Close 关闭命令行，现在这个方法啥也没做
 func (c *CommandLine) Close() {
-
+	DebugLog("closed commandline")
 }
 
 // RequestRedraw 请求重绘（ goroutine 安全）
@@ -281,6 +282,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 	}
 	c.isReadingInput = true
 	c.redrawChannel = make(chan rune, 1024)
+	DebugLog("reading input")
 
 	renderer := newRenderer(c.option.Schema, c.option.PromptFactory)
 	c.renderer = renderer
@@ -341,6 +343,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 
 		//    处理特别的输入事件结果
 		if c.exitFlag {
+			DebugLog("handle exit flag")
 			//    一般是用户按了 Ctrl-D ，代表退出
 			switch c.option.OnExit {
 			case AbortActionReturnError:
@@ -356,6 +359,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 			}
 		}
 		if c.abortFlag {
+			DebugLog("handle abort flag")
 			//    一般是用户按了 Ctrl-C ，代表中断
 			switch c.option.OnAbort {
 			case AbortActionReturnError:
@@ -371,6 +375,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 			}
 		}
 		if c.acceptFlag {
+			DebugLog("handle accept flag")
 			//    一般是用户按了 Enter ，代表完成本次输入
 			renderer.render(line.GetRenderContext(), false, true)
 			inputText = line.text()
@@ -383,7 +388,7 @@ func (c *CommandLine) ReadInput() (string, error) {
 	//    返回用户输入的文本内容
 	c.redrawChannel = nil
 	c.isReadingInput = false
-	DebugLog("return input: <%s>", inputText)
+	DebugLog("return input: <%s>, err: nil", inputText)
 	return inputText, nil
 }
 
