@@ -109,10 +109,10 @@ func (ebuf *EventBuffer) append(event Event) {
 			lastk := last.(*EventKey)
 			eventk := event.(*EventKey)
 			lastk.appendData(eventk.GetData())
+			return
 		}
-	} else {
-		ebuf.buffer = append(ebuf.buffer, event)
 	}
+	ebuf.buffer = append(ebuf.buffer, event)
 }
 
 func (ebuf *EventBuffer) getAll() []Event {
