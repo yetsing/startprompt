@@ -17,8 +17,26 @@ func (s Schema) StyleForToken(tokenType token.TokenType) *terminalcolor.ColorSty
 			return style
 		}
 	}
-	return nil
+	return styleDefault
 }
+
+func (s Schema) StyleForSelection(origStyle *terminalcolor.ColorStyle) *terminalcolor.ColorStyle {
+	tokenType := token.Selection
+	style, found := s[tokenType]
+	if !found {
+		style = selectionStyleDefault
+	}
+	if style.FgIsColorDefault() {
+		//    保留原有的文本颜色
+		style = style.CopyAndFg(origStyle.Fg())
+	}
+	return style
+}
+
+var (
+	selectionStyleDefault = terminalcolor.NewBgColorStyleHex("#40334d")
+	styleDefault          = terminalcolor.NewDefaultColorStyle()
+)
 
 var defaultSchema = map[token.TokenType]*terminalcolor.ColorStyle{
 	token.Keyword:  terminalcolor.NewFgColorStyleHex("#ee00ee"),
@@ -36,4 +54,6 @@ var defaultSchema = map[token.TokenType]*terminalcolor.ColorStyle{
 	token.CompletionMenuMeta:              terminalcolor.NewColorStyleHex("#cccccc", "#888888"),
 	token.CompletionMenuProgressBar:       terminalcolor.NewColorStyleHex("", "#aaaaaa"),
 	token.CompletionMenuProgressButton:    terminalcolor.NewColorStyleHex("", "#000000"),
+
+	token.Selection: selectionStyleDefault,
 }

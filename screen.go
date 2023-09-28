@@ -74,7 +74,7 @@ func (c *Char) reverseStyle() {
 	if c.style == nil {
 		c.style = terminalcolor.NewDefaultColorStyle()
 	}
-	c.style = c.style.DoReverse(true)
+	c.style = c.style.CopyAndReverse(true)
 }
 
 func newChar(r rune, style *terminalcolor.ColorStyle) *Char {
@@ -133,7 +133,7 @@ func (s *Screen) ReverseStyle(start Coordinate, end Coordinate) {
 	for end.gt(&current) {
 		ch := s.getAtPos(current.X, current.Y)
 		if ch == nil {
-			ch = newChar(' ', nil)
+			ch = newChar(' ', styleDefault)
 		}
 		ch.reverseStyle()
 		s.writeAtPos(current.X, current.Y, ch)
@@ -196,7 +196,7 @@ func (s *Screen) Output(offsetY int) (string, Coordinate) {
 				} else {
 					// 如果我们不手动移动光标位置，那么就需要一个个字符地输出，这样光标才会自动向右（向下）移动
 					// 那么在 buffer 里面的坐标之间的空档，我们都要输出空白字符用来填充
-					char = newChar(' ', nil)
+					char = newChar(' ', styleDefault)
 				}
 				result = append(result, char.output())
 				c += char.width()

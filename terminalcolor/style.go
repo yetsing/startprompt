@@ -43,6 +43,10 @@ func NewFgColorStyleHex(fg string) *ColorStyle {
 	return NewColorStyleGeneric(Color256IndexFromHexRGB(fg), ColorDefault, false, false, false)
 }
 
+func NewBgColorStyleHex(bg string) *ColorStyle {
+	return NewColorStyleGeneric(ColorDefault, Color256IndexFromHexRGB(bg), false, false, false)
+}
+
 func NewColorStyle(fg Color, bg Color) *ColorStyle {
 	return NewColorStyleGeneric(fg, bg, false, false, false)
 }
@@ -65,7 +69,26 @@ func NewColorStyleGeneric(fg, bg Color, bold, underline, italic bool) *ColorStyl
 	}
 }
 
-func (c *ColorStyle) DoReverse(on bool) *ColorStyle {
+func (c *ColorStyle) Fg() Color {
+	return c.fg
+}
+
+func (c *ColorStyle) FgIsColorDefault() bool {
+	return c.fg == ColorDefault
+}
+
+func (c *ColorStyle) CopyAndFg(fg Color) *ColorStyle {
+	return &ColorStyle{
+		fg:        fg,
+		bg:        c.bg,
+		bold:      c.bold,
+		underline: c.underline,
+		italic:    c.italic,
+		reverse:   c.reverse,
+	}
+}
+
+func (c *ColorStyle) CopyAndReverse(on bool) *ColorStyle {
 	return &ColorStyle{
 		fg:        c.fg,
 		bg:        c.bg,

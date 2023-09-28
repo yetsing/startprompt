@@ -199,10 +199,11 @@ func (tr *TRenderer) Show() {
 		lineData, found := tr.scrollTextView.getLineAt(y)
 		if found {
 			for _, datum := range lineData {
-				tstyle := terminalcolor.ToTcellStyle(datum.style)
+				style := datum.style
 				if tr.scrollTextView.inSelection(Coordinate{datum.x, y}) {
-					tstyle = tstyle.Reverse(true)
+					style = tr.schema.StyleForSelection(style)
 				}
+				tstyle := terminalcolor.ToTcellStyle(style)
 				for i, r := range datum.char {
 					tr.tscreen.SetContent(datum.x+i, y, r, nil, tstyle)
 				}

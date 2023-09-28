@@ -125,6 +125,8 @@ const (
 	CompletionMenuProgressButton    TokenType = CompletionMenu + ".progressbutton"
 	CompletionMenuProgressBar       TokenType = CompletionMenu + ".progressbar"
 
+	Selection TokenType = "selection"
+
 	EOF TokenType = "EOF"
 )
 
