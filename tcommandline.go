@@ -303,7 +303,7 @@ func (tc *TCommandLine) runLoop() {
 
 		//    处理特别的输入事件结果
 		if tc.exitFlag {
-			DebugLog("handle exit flag")
+			DebugLog("handle exit flag, action: %s", tc.option.OnExit)
 			//    一般是用户按了 Ctrl-D
 			switch tc.option.OnExit {
 			case AbortActionReturnError:
@@ -321,7 +321,7 @@ func (tc *TCommandLine) runLoop() {
 			}
 		}
 		if tc.abortFlag {
-			DebugLog("handle abort flag")
+			DebugLog("handle abort flag, action: %s", tc.option.OnAbort)
 			//    一般是用户按了 Ctrl-C
 			switch tc.option.OnAbort {
 			case AbortActionReturnError:

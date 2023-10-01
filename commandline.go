@@ -311,6 +311,8 @@ func (c *CommandLine) ReadInput() (string, error) {
 	//    更多说明解释参考：https://viewsourcecode.org/snaptoken/kilo/02.enteringRawMode.html
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
+		c.redrawChannel = nil
+		c.isReadingInput = false
 		return "", err
 	}
 	//    ReadInput 调用返回后，控制流程就到了用户，我们需要恢复终端的初始状态
@@ -328,6 +330,8 @@ func (c *CommandLine) ReadInput() (string, error) {
 		switch pollEvent {
 		case PollEventInput:
 			if c.readError != nil {
+				c.redrawChannel = nil
+				c.isReadingInput = false
 				return "", c.readError
 			}
 			DebugLog("read rune: [%d, ...] len=%d", runes[0], len(runes))
@@ -343,14 +347,18 @@ func (c *CommandLine) ReadInput() (string, error) {
 
 		//    处理特别的输入事件结果
 		if c.exitFlag {
-			DebugLog("handle exit flag")
+			DebugLog("handle exit flag, action: %s", c.option.OnExit)
 			//    一般是用户按了 Ctrl-D ，代表退出
 			switch c.option.OnExit {
 			case AbortActionReturnError:
 				renderer.render(line.GetRenderContext(), true, false)
+				c.redrawChannel = nil
+				c.isReadingInput = false
 				return "", ExitError
 			case AbortActionReturnNone:
 				renderer.render(line.GetRenderContext(), true, false)
+				c.redrawChannel = nil
+				c.isReadingInput = false
 				return "", nil
 			case AbortActionRetry:
 				resetFunc()
@@ -359,14 +367,18 @@ func (c *CommandLine) ReadInput() (string, error) {
 			}
 		}
 		if c.abortFlag {
-			DebugLog("handle abort flag")
+			DebugLog("handle abort flag, action: %s", c.option.OnAbort)
 			//    一般是用户按了 Ctrl-C ，代表中断
 			switch c.option.OnAbort {
 			case AbortActionReturnError:
 				renderer.render(line.GetRenderContext(), true, false)
+				c.redrawChannel = nil
+				c.isReadingInput = false
 				return "", AbortError
 			case AbortActionReturnNone:
 				renderer.render(line.GetRenderContext(), true, false)
+				c.redrawChannel = nil
+				c.isReadingInput = false
 				return "", nil
 			case AbortActionRetry:
 				resetFunc()
