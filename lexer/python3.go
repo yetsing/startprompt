@@ -11,6 +11,7 @@ import (
 /*
 这个分词器跟在编译器或者解释器里面的有点不一样
 因为用户的输入在不断变化，他需要容忍错误，尽可能地解析字符
+会包括空格的 Token
 */
 
 func isdigit(r rune) bool {
@@ -21,7 +22,7 @@ func py3GenericInteger(buffer *CodeBuffer, prefix string, isLegalDigit func(rune
 	start := buffer.GetIndex()
 	if len(prefix) > 0 {
 		p := buffer.PeekString(len(prefix))
-		if strings.ToLower(p) != strings.ToLower(prefix) {
+		if !strings.EqualFold(p, prefix) {
 			return ""
 		}
 		buffer.Advance(len(prefix))
@@ -43,7 +44,7 @@ func py3GenericInteger(buffer *CodeBuffer, prefix string, isLegalDigit func(rune
 	}
 	end := buffer.GetIndex()
 	s := buffer.Slice(start, end)
-	if len(prefix) > 0 && strings.ToLower(s) == strings.ToLower(prefix) {
+	if len(prefix) > 0 && strings.EqualFold(s, prefix) {
 		return ""
 	}
 	return s
@@ -179,7 +180,7 @@ func NewPy3Lexer(code string) *Py3Lexer {
 
 		oneCharOps: ",.()+-*/=^%&|~<>[]{}:@;",
 		twoCharOps: []string{
-			"//", "+=", "-=", "*=", "/=",
+			"//", "+=", "-=", "*=", "/=", "%=",
 			"&=", "|=",
 			"==", ">=", "<=", "!=",
 			">>", "<<",
@@ -288,18 +289,26 @@ func (l *Py3Lexer) lineTokens() {
 		}
 		// 代码前面的缩进才有意义
 		var dents []token.Token
-		if buffer.HasChar() && buffer.CurrentChar() != '\r' && buffer.CurrentChar() != '\n' && buffer.CurrentChar() != '#' {
+		if buffer.HasChar() && buffer.CurrentChar() != '\r' && buffer.CurrentChar() != '\n' &&
+			buffer.CurrentChar() != '#' {
 			dents = l.indentsOrDedents()
 		}
 		// 如果空格没有被解析为缩进，重置解析的位置
+		// 还有就是 dedent 的 token 值是空，造成开头的空格被丢弃
 		// 比如下面这种情况， "print(3)" 行会有一个缩进 token ，"print(4)" 行因为与上一行空格一致，所以不会有缩进 token
 		// 需要解析为空格，不然输出后会发现少了一块
 		// if 1:
 		//   print(3)
 		//   print(4)
-		if len(dents) == 0 {
-			buffer.SetIndex(index)
+		//   if 2:
+		//     pass
+		//   else:
+		//     pass
+		spaceCount := 0
+		for _, tk := range dents {
+			spaceCount += len(tk.Literal)
 		}
+		buffer.SetIndex(index + spaceCount)
 	}
 
 	l.continuedLine = false
@@ -550,6 +559,7 @@ var idStartCategorys = map[string]uint8{
 	"Lo": 1,
 	"Nl": 1,
 }
+
 var idContinueCategorys = map[string]uint8{
 	"Lu": 1,
 	"Ll": 1,
